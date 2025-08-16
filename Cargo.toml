@@ -4,8 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = "0.8"
+anyhow = "1.0"
+axum = { version = "0.8", features = ["macros"] }
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 serde = { version = "1.0", features = ["derive"] }
+sled = "0.34"
+tera = "1.20"
 tokio = { version = "1.47", features = ["full"] }
