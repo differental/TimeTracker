@@ -17,6 +17,8 @@ use handlers::add_entry;
 mod pages;
 use pages::{display_index, display_summary};
 
+use crate::handlers::fetch_data;
+
 mod utils;
 
 #[tokio::main]
@@ -29,8 +31,9 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/", get(display_index))
-        .route("/stats", get(display_summary))
-        .route("/api/events", post(add_entry))
+        .route("/summary", get(display_summary))
+        .route("/api/entry", post(add_entry))
+        .route("/api/data", get(fetch_data))
         .layer(middleware::from_fn(auth_user))
         .with_state(app_state);
 

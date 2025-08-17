@@ -1,10 +1,11 @@
 use askama::Template;
 use axum::{
-    extract::{Request, State},
+    extract::{Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
 use chrono::{TimeZone, Utc};
+use serde::Deserialize;
 use sled::Tree;
 
 use crate::{
@@ -28,9 +29,11 @@ fn get_length(meta: &Tree) -> u64 {
 struct IndexPageTemplate<'a> {
     key: &'a str,
     states: [&'a str; 10],
+    current_page: &'a str,
     current_state: &'a str,
     elapsed_hms: String,
     elapsed_ms: i64,
+    version: &'a str
 }
 
 pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
@@ -67,15 +70,42 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     let page = IndexPageTemplate {
         key: &*ACCESS_KEY,
         states: STATES,
+        current_page: "index",
         current_state: STATES[curr_state as usize],
         elapsed_hms,
         elapsed_ms: duration.num_milliseconds(),
+        version: env!("CARGO_PKG_VERSION")
     };
 
     let rendered = page.render().unwrap();
     (StatusCode::OK, Html(rendered)).into_response()
 }
 
-pub async fn display_summary(_req: Request) -> Response {
-    (StatusCode::OK).into_response()
+#[derive(Template)]
+#[template(path = "summary.html")]
+struct SummaryPageTemplate<'a> {
+    key: &'a str,
+    states: [&'a str; 10],
+    current_page: &'a str,
+    range_label: String,
+    version: &'a str
+}
+
+#[derive(Deserialize)]
+pub struct SummaryPageParams {
+    // No. of days, defaults to 7
+    range: Option<u64>,
+}
+
+pub async fn display_summary(Query(params): Query<SummaryPageParams>) -> Response {
+    let page = SummaryPageTemplate {
+        key: &*ACCESS_KEY,
+        states: STATES,
+        current_page: "summary",
+        range_label: params.range.unwrap_or(7).to_string(),
+        version: env!("CARGO_PKG_VERSION")
+    };
+
+    let rendered = page.render().unwrap();
+    (StatusCode::OK, Html(rendered)).into_response()
 }

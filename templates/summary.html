@@ -1,51 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TimeTracker — Summary</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body { padding-top: 4.5rem; }
+
+        .legend-color { display:inline-block; border-radius:9999px; width:20px; height:20px; flex-shrink:0; margin-right:0.75rem; }
+        @media (min-width: 768px) {
+            .legend-color { width:12px; height:12px; margin-right:0.5rem; }
+        }
+    </style>
 </head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+    <nav class="bg-blue-600 text-white p-4 fixed inset-x-0 top-0 z-50">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <a href="#" class="flex items-center gap-2 font-bold text-xl">
+                <span class="text-2xl">⏱️</span>
+                <span>TimeTracker</span>
+            </a>
 
-<body class="container">
-    <h1 class="my-4">📊 Activity Breakdown ({{ range_label }})</h1>
+            <div class="hidden md:flex items-center gap-6">
+                <a href="/?key={{ key }}" class="text-base {% if current_page == "index" %}font-semibold{% endif %} hover:underline">Current</a>
+                <a href="/summary?key={{ key }}" class="text-base {% if current_page == "summary" %}font-semibold{% endif %} hover:underline">Summary</a>
+            </div>
 
-    <div class="d-flex flex-column flex-md-row align-items-start mb-4">
-        <!-- SVG pie chart (no JS) -->
-        <svg width="320" height="320" viewBox="0 0 32 32" class="me-md-5">
-            {% for seg in segments %}
-            <circle r="16" cx="16" cy="16"
-                    stroke="{{ seg.color }}"
-                    stroke-width="32"
-                    fill="transparent"
-                    stroke-dasharray="{{ seg.percent }} 100"
-                    stroke-dashoffset="{{ seg.offset }}" />
-            {% endfor %}
-        </svg>
+            <div class="flex items-center gap-3">
+                <div class="block md:hidden text-base bg-blue-700 px-3 py-1 rounded font-mono">Key: {{ key }}</div>
+                <div class="hidden md:block text-blue-100 text-sm">Key: <span class="font-mono text-white">{{ key }}</span></div>
 
-        <!-- legend -->
-        <ul class="list-group w-100">
-            {% for seg in segments %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <span>
-                    <span style="display:inline-block;width:12px;height:12px;
-                                 background:{{ seg.color }};
-                                 margin-right:8px;border-radius:2px;"></span>
-                    {{ seg.name }}
-                </span>
-                <span>{{ seg.hms }}</span>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
+                <button id="navToggle" class="md:hidden inline-flex items-center justify-center p-2 rounded-md text-blue-100 hover:bg-blue-500" aria-expanded="false" aria-controls="mobileNav" aria-label="Open navigation">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
 
-    <!-- range shortcuts -->
-    <div class="btn-group mb-4">
-        <a href="/summary?key={{ key }}&range=1d"  class="btn btn-outline-primary">24 h</a>
-        <a href="/summary?key={{ key }}&range=3d"  class="btn btn-outline-primary">3 d</a>
-        <a href="/summary?key={{ key }}&range=7d"  class="btn btn-outline-primary">7 d</a>
-        <a href="/summary?key={{ key }}&range=30d" class="btn btn-outline-primary">30 d</a>
-    </div>
+        <div id="mobileNav" class="md:hidden hidden pb-4 bg-blue-600">
+            <div class="max-w-5xl mx-auto px-4">
+                <div class="flex flex-col space-y-2">
+                    <a href="/?key={{ key }}" class="block px-3 py-3 rounded text-base text-blue-100 hover:bg-blue-500" role="menuitem">Current</a>
+                    <a href="/summary?key={{ key }}" class="block px-3 py-3 rounded text-base text-blue-100 hover:bg-blue-500" role="menuitem">Summary</a>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-    <a href="/?key={{ key }}" class="btn btn-secondary">Back</a>
+    <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
+        <div class="mt-2 mb-4">
+            <h1 class="text-3xl md:text-2xl font-semibold">📊 Activity Breakdown</h1>
+            <p class="text-gray-500" id="range-label">{{ range_label }}</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div class="col-span-1 flex justify-center items-start">
+                <svg id="pie" class="pie-svg bg-white shadow rounded-lg w-full max-w-[420px] md:max-w-[320px]" width="320" height="320" viewBox="0 0 32 32" aria-hidden="true"></svg>
+            </div>
+
+            <div class="col-span-2">
+                <ul id="legend" class="bg-white shadow rounded-lg divide-y divide-gray-100">
+                    <!-- populated by JS -->
+                </ul>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button class="range-btn block w-full sm:w-auto px-6 py-4 md:px-4 md:py-3 bg-white border border-gray-200 rounded shadow-sm text-lg md:text-base" data-range="1">24 h</button>
+                <button class="range-btn block w-full sm:w-auto px-6 py-4 md:px-4 md:py-3 bg-white border border-gray-200 rounded shadow-sm text-lg md:text-base" data-range="7">7 d</button>
+                <button class="range-btn block w-full sm:w-auto px-6 py-4 md:px-4 md:py-3 bg-white border border-gray-200 rounded shadow-sm text-lg md:text-base" data-range="30">30 d</button>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <a href="/?key={{ key }}" class="inline-block bg-gray-700 text-white px-6 py-3 rounded hover:bg-gray-800 text-lg md:text-base">Back</a>
+        </div>
+    </main>
+
+    <footer class="bg-gray-200 text-center p-6 text-sm text-gray-700">
+        <a href="https://github.com/" target="_blank">TimeTracker</a>
+        {% if version is defined %} v{{ version }}{% endif %}
+    </footer>
+
+    <ul id="state-list" class="hidden">
+        {% for s in states %}
+        <li data-name="{{ s }}">{{ s }}</li>
+        {% endfor %}
+    </ul>
+
+    <script>
+        // mobile nav toggle (same as index)
+        const navToggle = document.getElementById('navToggle');
+        const mobileNav = document.getElementById('mobileNav');
+        navToggle?.addEventListener('click', () => {
+            const expanded = navToggle.getAttribute('aria-expanded') === 'true';
+            navToggle.setAttribute('aria-expanded', String(!expanded));
+            mobileNav.classList.toggle('hidden');
+        });
+
+        // Read names
+        function readNamesFromDOM() {
+            const lis = document.querySelectorAll('#state-list li');
+            return Array.from(lis).map(li => li.getAttribute('data-name'));
+        }
+        const NAMES = readNamesFromDOM();
+
+        // Palette
+        const COLORS = [
+            "#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f",
+            "#edc949","#af7aa1","#ff9da7","#9c755f","#bab0ac"
+        ];
+
+        function msToReadable(ms) {
+            if (!ms || ms <= 0) return "0m";
+            const totalMinutes = Math.floor(ms / 60000);
+            const days = Math.floor(totalMinutes / 1440);
+            const hours = Math.floor((totalMinutes % 1440) / 60);
+            const minutes = totalMinutes % 60;
+            const parts = [];
+            if (days) parts.push(days + 'd');
+            if (hours) parts.push(hours + 'h');
+            if (minutes || parts.length === 0) parts.push(minutes + 'm');
+            return parts.join(' ');
+        }
+
+        function renderSegments(msArray, rangeLabel) {
+            const total = msArray.reduce((a,b) => a + b, 0) || 1;
+            const svg = document.getElementById('pie');
+            svg.innerHTML = '';
+            const legend = document.getElementById('legend');
+            legend.innerHTML = '';
+
+            let offset = 25;
+            msArray.forEach((ms, idx) => {
+                const percent = (ms / total) * 100;
+                const color = COLORS[idx % COLORS.length];
+
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("r", "16");
+                circle.setAttribute("cx", "16");
+                circle.setAttribute("cy", "16");
+                circle.setAttribute("stroke", color);
+                circle.setAttribute("stroke-width", "32");
+                circle.setAttribute("fill", "transparent");
+                circle.setAttribute("stroke-dasharray", `${percent} ${100 - percent}`);
+                circle.setAttribute("stroke-dashoffset", offset.toString());
+                circle.style.transition = "stroke-dasharray 500ms, stroke-dashoffset 500ms";
+                svg.appendChild(circle);
+
+                const li = document.createElement('li');
+                li.className = 'px-4 py-3 flex justify-between items-center';
+                const leftSpan = document.createElement('div');
+                leftSpan.className = 'flex items-center gap-3';
+                const colorDot = document.createElement('span');
+                colorDot.className = 'legend-color';
+                colorDot.style.background = color;
+                leftSpan.appendChild(colorDot);
+                const labelText = document.createElement('span');
+                labelText.className = 'text-lg md:text-sm';
+                labelText.textContent = NAMES[idx] || `State ${idx}`;
+                leftSpan.appendChild(labelText);
+
+                const rightSpan = document.createElement('span');
+                rightSpan.className = 'text-base md:text-sm text-gray-600';
+                rightSpan.textContent = msToReadable(ms);
+
+                li.appendChild(leftSpan);
+                li.appendChild(rightSpan);
+                legend.appendChild(li);
+
+                offset = offset - percent;
+            });
+
+            const labelEl = document.getElementById('range-label');
+            if (labelEl) labelEl.textContent = rangeLabel;
+        }
+
+        async function loadRange(days) {
+            try {
+                const resp = await fetch(`/api/data?key={{ key }}&range=${encodeURIComponent(days)}`);
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    alert("Error fetching data: " + txt);
+                    return;
+                }
+                const data = await resp.json();
+                const arr = new Array(Math.max(data.length, NAMES.length)).fill(0).map((_, i) => data[i] || 0);
+                const rangeLabel = (days === 1) ? "Last 24 hours" : `Last ${days} days`;
+                renderSegments(arr, rangeLabel);
+            } catch (err) {
+                alert("Network or unexpected error: " + (err && err.message ? err.message : err));
+            }
+        }
+
+        // wire up range buttons
+        document.querySelectorAll('.range-btn').forEach(btn => {
+            btn.addEventListener('click', (ev) => {
+                const days = parseInt(ev.currentTarget.getAttribute('data-range'), 10);
+                loadRange(days);
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', () => loadRange(1));
+    </script>
 </body>
 </html>

@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sled::{IVec, Tree};
 
 use crate::{
@@ -30,6 +30,15 @@ fn incr_length(meta: &mut Tree) -> u64 {
 #[derive(Deserialize)]
 pub struct AddEntryRequest {
     new_state: u8, // 0-indexed state
+    start_timestamp: i64,
+}
+
+// Response is same structure as request
+//   to symbolise that a request has been
+//   acknowledged
+#[derive(Serialize)]
+pub struct AddEntryResponse {
+    new_state: u8,
     start_timestamp: i64,
 }
 
@@ -59,5 +68,20 @@ pub async fn add_entry(
         }
     }
 
+    let response = AddEntryResponse {
+        new_state,
+        start_timestamp,
+    };
+
+    (StatusCode::OK, Json(response)).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct FetchDataRequest {}
+
+pub async fn fetch_data(
+    State(state): State<AppState>,
+    Json(payload): Json<FetchDataRequest>,
+) -> Response {
     (StatusCode::OK).into_response()
 }

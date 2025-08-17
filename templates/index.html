@@ -1,44 +1,107 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TimeTracker — Current Activity</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <style>
-        body { padding-top: 2rem; }
-        .timer { font-size: 3rem; }
+        body { padding-top: 4.5rem; }
+
+        .legend-color { display:inline-block; border-radius:9999px; width:20px; height:20px; flex-shrink:0; }
+        @media (min-width: 768px) {
+            .legend-color { width:12px; height:12px; }
+        }
     </style>
 </head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+    <nav class="bg-blue-600 text-white p-4 fixed inset-x-0 top-0 z-50">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <a href="#" class="flex items-center gap-2 font-bold text-xl">
+                <span class="text-2xl">⏱️</span>
+                <span>TimeTracker</span>
+            </a>
 
-<body class="container">
-    <h1 class="mb-4">⏱️ TimeTracker</h1>
+            <div class="hidden md:flex items-center gap-6">
+                <a href="/?key={{ key }}" class="text-base {% if current_page == "index" %}font-semibold{% endif %} hover:underline">Current</a>
+                <a href="/summary?key={{ key }}" class="text-base {% if current_page == "summary" %}font-semibold{% endif %} hover:underline">Summary</a>
+            </div>
 
-    <!-- current state -->
-    <div class="card mb-4 text-center">
-        <div class="card-body">
-            <h2 class="card-title">{{ current_state }}</h2>
-            <p class="timer" id="elapsed">{{ elapsed_hms }}</p>
+            <div class="flex items-center gap-3">
+                <div class="block md:hidden text-base bg-blue-700 px-3 py-1 rounded font-mono">Key: {{ key }}</div>
+                <div class="hidden md:block text-blue-100 text-sm">Key: <span class="font-mono text-white">{{ key }}</span></div>
+
+                <button id="navToggle" class="md:hidden inline-flex items-center justify-center p-2 rounded-md text-blue-100 hover:bg-blue-500" aria-expanded="false" aria-controls="mobileNav" aria-label="Open navigation">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
-    </div>
 
-    <!-- state-changing buttons -->
-    <form action="/switch?key={{ key }}" method="post" class="mb-4">
-        <div class="d-flex flex-wrap gap-2">
+        <div id="mobileNav" class="md:hidden hidden pb-4 bg-blue-600">
+            <div class="max-w-5xl mx-auto px-4">
+                <div class="flex flex-col space-y-2">
+                    <a href="/?key={{ key }}" class="block px-3 py-3 rounded text-base text-blue-100 hover:bg-blue-500" role="menuitem">Current</a>
+                    <a href="/summary?key={{ key }}" class="block px-3 py-3 rounded text-base text-blue-100 hover:bg-blue-500" role="menuitem">Summary</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
+        <div class="mt-2 mb-4">
+            <h1 class="text-3xl md:text-2xl font-semibold">Current Activity</h1>
+        </div>
+
+        <div class="bg-white shadow rounded-lg mb-6">
+            <div class="p-6 text-center flex flex-col items-center justify-center sm:min-h-0">
+                <h2 class="text-4xl md:text-3xl lg:text-4xl font-medium leading-tight" id="current-state">{{ current_state }}</h2>
+                <p id="elapsed" class="timer mt-4 text-6xl md:text-6xl lg:text-6xl font-semibold"> {{ elapsed_hms }} </p>
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <div class="flex flex-col gap-4 lg:grid lg:grid-cols-3 lg:gap-4">
             {% for s in states %}
-            <button type="submit"
-                    name="state"
-                    value="{{ s }}"
-                    class="btn btn-outline-primary">
-                {{ s }}
-            </button>
+                <div class="bg-white shadow rounded-md p-0 flex items-stretch">
+                    <button type="button"
+                            class="change-state-btn w-full py-4 text-xl md:py-3 md:text-lg rounded-md border border-blue-600 hover:bg-blue-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300 flex-1"
+                            value="{{ loop.index0 }}"
+                            aria-label="Change state to {{ s }}">
+                    {{ s }}
+                    </button>
+                </div>
             {% endfor %}
+            </div>
         </div>
-    </form>
+    </main>
 
-    <a href="/summary?key={{ key }}&range=1d" class="btn btn-secondary">View summary</a>
+    <footer class="bg-gray-200 text-center p-6 text-sm text-gray-700">
+        <a href="https://github.com/" target="_blank">TimeTracker</a>
+        {% if version is defined %} v{{ version }}{% endif %}
+    </footer>
 
-    <!-- lightweight live timer -->
     <script>
+        // mobile nav toggle
+        const navToggle = document.getElementById('navToggle');
+        const mobileNav = document.getElementById('mobileNav');
+        navToggle?.addEventListener('click', () => {
+            const expanded = navToggle.getAttribute('aria-expanded') === 'true';
+            navToggle.setAttribute('aria-expanded', String(!expanded));
+            mobileNav.classList.toggle('hidden');
+        });
+
         const start = Date.now() - {{ elapsed_ms }};
         const pad = n => n.toString().padStart(2,'0');
         setInterval(() => {
@@ -48,6 +111,44 @@
             const s = Math.floor((d % 60000) / 1000);
             document.getElementById('elapsed').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
         }, 1000);
+
+        // Handle state change button clicks (unchanged)
+        document.querySelectorAll('.change-state-btn').forEach(btn => {
+            btn.addEventListener('click', async (ev) => {
+                const newState = parseInt(ev.currentTarget.value, 10);
+                const payload = { new_state: newState, start_timestamp: Date.now() };
+
+                try {
+                    const response = await fetch('/api/entry?key={{ key }}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        await Swal.fire({ icon: 'error', title: 'Error', text: errText });
+                        return;
+                    }
+
+                    await response.json();
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'State changed',
+                        text: 'State saved. Reloading...',
+                        showConfirmButton: false,
+                        timer: 1400,
+                        timerProgressBar: true,
+                        willClose: () => location.reload()
+                    });
+
+                } catch (err) {
+                    const msg = (err && err.message) ? err.message : String(err);
+                    await Swal.fire({ icon: 'error', title: 'Error', text: msg });
+                }
+            });
+        });
     </script>
 </body>
 </html>
