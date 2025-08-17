@@ -1,20 +1,18 @@
-use std::{
-    env,
-    net::SocketAddr,
-    sync::{
-        Arc, LazyLock,
-        atomic::{AtomicU64, Ordering},
-    },
-};
+use std::{env, net::SocketAddr, sync::LazyLock};
 
+use askama::Template;
 use axum::{
-    debug_handler, extract::{Query, Request, State}, http::StatusCode, middleware::{self, Next}, response::{Html, IntoResponse, Response}, routing::{get, post}, Json, Router
+    Json, Router,
+    extract::{Query, Request, State},
+    http::StatusCode,
+    middleware::{self, Next},
+    response::{Html, IntoResponse, Response},
+    routing::{get, post},
 };
 use chrono::{TimeZone, Utc};
-use num::{pow, traits::ToBytes};
+use num::traits::ToBytes;
 use serde::Deserialize;
 use sled::{IVec, Tree};
-use askama::Template;
 use tokio::net::TcpListener;
 
 static ACCESS_KEY: LazyLock<String> = LazyLock::new(|| env::var("ACCESS_KEY").unwrap());
@@ -32,7 +30,7 @@ struct IndexPageTemplate<'a> {
 #[derive(Clone)]
 struct AppState {
     events: Tree,
-    meta: Tree
+    meta: Tree,
 }
 
 static STATES: [&str; 10] = [
@@ -55,7 +53,10 @@ fn ivec_to_u64(v: IVec) -> u64 {
     u64::from_ne_bytes(bytes)
 }
 
-fn to_ivec<T: ToBytes>(n: T) -> IVec where IVec: for<'a> From<&'a T::Bytes> {
+fn to_ivec<T: ToBytes>(n: T) -> IVec
+where
+    IVec: for<'a> From<&'a T::Bytes>,
+{
     // There's gotta be some way to not express this in such an ugly way...
     let bytes = n.to_ne_bytes();
     IVec::from(&bytes)
@@ -65,7 +66,7 @@ fn incr_length(meta: &mut Tree) -> u64 {
     // Inserts 0 if doesn't exist, returns new length
     let len = match meta.get(b"len").unwrap() {
         Some(val) => ivec_to_u64(val),
-        None => 0
+        None => 0,
     };
 
     let v = to_ivec((len + 1) as u64);
@@ -87,11 +88,6 @@ fn get_length(meta: &Tree) -> u64 {
 
 async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     let last_id = get_length(&state.meta);
-
-
-    println!("{}", last_id);
-
-
 
     if last_id == 0 {
         return (
@@ -143,7 +139,6 @@ struct AddEntryRequest {
     start_timestamp: i64,
 }
 
-
 async fn add_entry(
     State(mut state): State<AppState>,
     Json(payload): Json<AddEntryRequest>,
@@ -185,17 +180,11 @@ async fn auth_user(
 ) -> impl IntoResponse {
     // Authentication layer, checks query param against key
 
-
-    println!("{:?} {}", params.key, *ACCESS_KEY);
-
-
     if let Some(ref val) = params.key {
         if val.trim() != *ACCESS_KEY {
-            println!("{} {}", val.trim(), *ACCESS_KEY);
             return (StatusCode::FORBIDDEN).into_response();
         }
     } else {
-        println!("no key found");
         return (StatusCode::FORBIDDEN).into_response();
     }
 
@@ -208,12 +197,7 @@ async fn main() -> anyhow::Result<()> {
     let events = db.open_tree("events")?;
     let meta = db.open_tree("meta")?;
 
-    println!("{}", *ACCESS_KEY);
-
-    let app_state = AppState {
-        events,
-        meta,
-    };
+    let app_state = AppState { events, meta };
 
     let app = Router::new()
         .route("/", get(display_index))
