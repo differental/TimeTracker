@@ -8,41 +8,34 @@ use std::{
 };
 
 use axum::{
-    Router,
-    extract::{Query, Request, State},
-    http::StatusCode,
-    middleware::{self, Next},
-    response::{Html, IntoResponse, Response},
-    routing::{get, post},
+    debug_handler, extract::{Query, Request, State}, http::StatusCode, middleware::{self, Next}, response::{Html, IntoResponse, Response}, routing::{get, post}, Json, Router
 };
 use chrono::{TimeZone, Utc};
+use num::{pow, traits::ToBytes};
 use serde::Deserialize;
-use sled::Tree;
-use tera::{Context, Tera};
+use sled::{IVec, Tree};
+use askama::Template;
 use tokio::net::TcpListener;
 
 static ACCESS_KEY: LazyLock<String> = LazyLock::new(|| env::var("ACCESS_KEY").unwrap());
 
-static TEMPLATES: LazyLock<Tera> = LazyLock::new(|| {
-    let mut tera = match Tera::new("templates/*.html.tera") {
-        Ok(t) => t,
-        Err(e) => {
-            println!("Parsing error(s): {}", e);
-            ::std::process::exit(1);
-        }
-    };
-    tera.autoescape_on(vec![".html"]);
-    tera
-});
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexPageTemplate<'a> {
+    key: &'a str,
+    states: [&'a str; 10],
+    current_state: &'a str,
+    elapsed_hms: String,
+    elapsed_ms: i64,
+}
 
 #[derive(Clone)]
 struct AppState {
     events: Tree,
-    meta: Tree,
-    len: Arc<AtomicU64>,
+    meta: Tree
 }
 
-static STATES: [&'static str; 10] = [
+static STATES: [&str; 10] = [
     ("📚 Study"),
     ("💼 Work"),
     ("🚃 Commute"),
@@ -55,9 +48,50 @@ static STATES: [&'static str; 10] = [
     ("🍹 Day Out"),
 ];
 
-#[axum::debug_handler]
+fn ivec_to_u64(v: IVec) -> u64 {
+    let slice = v.as_ref();
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&slice[0..8]);
+    u64::from_ne_bytes(bytes)
+}
+
+fn to_ivec<T: ToBytes>(n: T) -> IVec where IVec: for<'a> From<&'a T::Bytes> {
+    // There's gotta be some way to not express this in such an ugly way...
+    let bytes = n.to_ne_bytes();
+    IVec::from(&bytes)
+}
+
+fn incr_length(meta: &mut Tree) -> u64 {
+    // Inserts 0 if doesn't exist, returns new length
+    let len = match meta.get(b"len").unwrap() {
+        Some(val) => ivec_to_u64(val),
+        None => 0
+    };
+
+    let v = to_ivec((len + 1) as u64);
+
+    meta.insert(b"len", v);
+
+    len + 1
+}
+
+fn get_length(meta: &Tree) -> u64 {
+    match meta.get(b"len").unwrap() {
+        Some(val) => ivec_to_u64(val),
+        None => {
+            meta.insert(b"len", to_ivec(0u64));
+            0
+        }
+    }
+}
+
 async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
-    let last_id = state.len.load(Ordering::SeqCst);
+    let last_id = get_length(&state.meta);
+
+
+    println!("{}", last_id);
+
+
 
     if last_id == 0 {
         return (
@@ -87,24 +121,55 @@ async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     );
     let elapsed_hms = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
 
-    let mut ctx = Context::new();
-    ctx.insert("current_state", STATES[curr_state as usize]);
-    ctx.insert("elapsed_hms", &elapsed_hms);
-    ctx.insert("key", &*ACCESS_KEY);
-    ctx.insert("states", &STATES);
-    ctx.insert("elapsed_ms", &duration.num_milliseconds());
+    let page = IndexPageTemplate {
+        key: &*ACCESS_KEY,
+        states: STATES,
+        current_state: STATES[curr_state as usize],
+        elapsed_hms,
+        elapsed_ms: duration.num_milliseconds(),
+    };
 
-    match TEMPLATES.render("templates/index.html.tera", &ctx) {
-        Ok(str) => (StatusCode::OK, Html(str)).into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR).into_response(),
-    }
+    let rendered = page.render().unwrap();
+    (StatusCode::OK, Html(rendered)).into_response()
 }
 
 async fn display_summary(req: Request) -> Response {
     (StatusCode::OK).into_response()
 }
 
-async fn add_entry(req: Request) -> Response {
+#[derive(Deserialize)]
+struct AddEntryRequest {
+    new_state: u8, // 0-indexed state
+    start_timestamp: i64,
+}
+
+
+async fn add_entry(
+    State(mut state): State<AppState>,
+    Json(payload): Json<AddEntryRequest>,
+) -> Response {
+    let AddEntryRequest {
+        new_state,
+        start_timestamp,
+    } = payload;
+
+    // Add timestamp etc. checks here! Remember timestamps should be UTC
+
+    let new_key = incr_length(&mut state.meta) - 1;
+
+    // Inserted element: First byte is new_state, next 8 bytes are start_timestamp
+    let mut bytes = [0u8; 9];
+    bytes[0] = new_state;
+    bytes[1..].copy_from_slice(&start_timestamp.to_ne_bytes());
+
+    match state.events.insert(to_ivec(new_key), IVec::from(&bytes)) {
+        Ok(_) => (),
+        Err(err) => {
+            println!("{err:?}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("{err}")).into_response();
+        }
+    }
+
     (StatusCode::OK).into_response()
 }
 
@@ -119,7 +184,12 @@ async fn auth_user(
     next: Next,
 ) -> impl IntoResponse {
     // Authentication layer, checks query param against key
-    if let Some(val) = params.key {
+
+
+    println!("{:?} {}", params.key, *ACCESS_KEY);
+
+
+    if let Some(ref val) = params.key {
         if val.trim() != *ACCESS_KEY {
             println!("{} {}", val.trim(), *ACCESS_KEY);
             return (StatusCode::FORBIDDEN).into_response();
@@ -140,19 +210,9 @@ async fn main() -> anyhow::Result<()> {
 
     println!("{}", *ACCESS_KEY);
 
-    let initial_len = match meta.get(b"len")? {
-        Some(v) => {
-            let mut buffer = [0u8; 8];
-            buffer.copy_from_slice(&v[..]);
-            u64::from_ne_bytes(buffer)
-        }
-        None => 0u64,
-    };
-
     let app_state = AppState {
         events,
         meta,
-        len: Arc::new(AtomicU64::new(initial_len)),
     };
 
     let app = Router::new()
