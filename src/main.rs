@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(middleware::from_fn(auth_user))
         .with_state(app_state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 5555));
     println!("Server running on {addr}");
 
     let listener = TcpListener::bind(addr).await.unwrap();
