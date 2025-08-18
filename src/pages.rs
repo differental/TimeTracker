@@ -1,28 +1,15 @@
 use askama::Template;
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
 use chrono::{TimeZone, Utc};
-use serde::Deserialize;
-use sled::Tree;
 
 use crate::{
     constants::{ACCESS_KEY, AppState, STATES},
-    utils::{ivec_to_u64, to_ivec},
+    utils::{get_length, read_from_value},
 };
-
-fn get_length(meta: &Tree) -> u64 {
-    match meta.get(b"len").unwrap() {
-        Some(val) => ivec_to_u64(val),
-        None => {
-            // TO-DO: Handle Err(_) gracefully
-            meta.insert(b"len", to_ivec(0u64)).unwrap();
-            0
-        }
-    }
-}
 
 #[derive(Template)]
 #[template(path = "index.html")]
@@ -33,7 +20,7 @@ struct IndexPageTemplate<'a> {
     current_state: &'a str,
     elapsed_hms: String,
     elapsed_ms: i64,
-    version: &'a str
+    version: &'a str,
 }
 
 pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
@@ -47,15 +34,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
             .into_response();
     }
 
-    let bytes = state
-        .events
-        .get((last_id - 1).to_ne_bytes())
-        .unwrap()
-        .unwrap();
-    let curr_state = u8::from_ne_bytes([bytes[0]]);
-    let mut time_bytes = [0u8; 8];
-    time_bytes.copy_from_slice(&bytes[1..]);
-    let curr_starttime = i64::from_ne_bytes(time_bytes);
+    let (curr_state, curr_starttime) = read_from_value(&state.events, last_id - 1);
 
     let now = Utc::now();
     let starttime = Utc.timestamp_millis_opt(curr_starttime).unwrap();
@@ -74,7 +53,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
         current_state: STATES[curr_state as usize],
         elapsed_hms,
         elapsed_ms: duration.num_milliseconds(),
-        version: env!("CARGO_PKG_VERSION")
+        version: env!("CARGO_PKG_VERSION"),
     };
 
     let rendered = page.render().unwrap();
@@ -87,23 +66,15 @@ struct SummaryPageTemplate<'a> {
     key: &'a str,
     states: [&'a str; 10],
     current_page: &'a str,
-    range_label: String,
-    version: &'a str
+    version: &'a str,
 }
 
-#[derive(Deserialize)]
-pub struct SummaryPageParams {
-    // No. of days, defaults to 7
-    range: Option<u64>,
-}
-
-pub async fn display_summary(Query(params): Query<SummaryPageParams>) -> Response {
+pub async fn display_summary() -> Response {
     let page = SummaryPageTemplate {
         key: &*ACCESS_KEY,
         states: STATES,
         current_page: "summary",
-        range_label: params.range.unwrap_or(7).to_string(),
-        version: env!("CARGO_PKG_VERSION")
+        version: env!("CARGO_PKG_VERSION"),
     };
 
     let rendered = page.render().unwrap();

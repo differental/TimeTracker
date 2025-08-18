@@ -2,7 +2,7 @@ use axum::{
     Router, middleware,
     routing::{get, post},
 };
-use std::net::SocketAddr;
+use std::{env, net::SocketAddr};
 use tokio::net::TcpListener;
 
 mod auth;
@@ -12,18 +12,18 @@ mod constants;
 use constants::AppState;
 
 mod handlers;
-use handlers::add_entry;
+use handlers::{add_entry, fetch_data};
 
 mod pages;
 use pages::{display_index, display_summary};
-
-use crate::handlers::fetch_data;
 
 mod utils;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let db = sled::open("./database.dat")?;
+    dotenvy::dotenv()?;
+
+    let db = sled::open(env::var("DB_PATH").unwrap())?;
     let events = db.open_tree("events")?;
     let meta = db.open_tree("meta")?;
 

@@ -61,7 +61,6 @@
     <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
         <div class="mt-2 mb-4">
             <h1 class="text-3xl md:text-2xl font-semibold">📊 Activity Breakdown</h1>
-            <p class="text-gray-500" id="range-label">{{ range_label }}</p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -125,7 +124,7 @@
 
         function msToReadable(ms) {
             if (!ms || ms <= 0) return "0m";
-            const totalMinutes = Math.floor(ms / 60000);
+            const totalMinutes = Math.round(ms / 60000);
             const days = Math.floor(totalMinutes / 1440);
             const hours = Math.floor((totalMinutes % 1440) / 60);
             const minutes = totalMinutes % 60;
@@ -213,7 +212,7 @@
             });
         });
 
-        document.addEventListener('DOMContentLoaded', () => loadRange(1));
+        document.addEventListener('DOMContentLoaded', () => loadRange(7));
     </script>
 </body>
 </html>
