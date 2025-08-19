@@ -7,7 +7,7 @@ use axum::{
 use chrono::{TimeZone, Utc};
 
 use crate::{
-    constants::{ACCESS_KEY, AppState, STATES},
+    constants::{ACCESS_KEY, AppState, STATES, STATES_WITH_DESCRIPTIONS},
     utils::{get_length, read_from_value},
 };
 
@@ -86,6 +86,7 @@ pub async fn display_summary() -> Response {
 struct ExplanationPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
+    states_with_descriptions: [(&'a str, &'a str); 12],
     version: &'a str,
 }
 
@@ -93,6 +94,7 @@ pub async fn display_explanations() -> Response {
     let page = ExplanationPageTemplate {
         key: &*ACCESS_KEY,
         current_page: "summary",
+        states_with_descriptions: STATES_WITH_DESCRIPTIONS,
         version: env!("CARGO_PKG_VERSION"),
     };
 

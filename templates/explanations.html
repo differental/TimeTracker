@@ -17,69 +17,15 @@
     {% include "navbar.html" %}
 
     <main class="flex-grow container mx-auto max-w-3xl px-4 py-10">
-        <h1 class="text-3xl font-semibold mb-4">Definitions of Each Activity</h1>
-        <p class="mb-6 text-sm text-gray-600">Short, clear descriptions for each activity category used by the TimeTracker app.</p>
+        <h1 class="text-3xl font-semibold mb-4">Activity Explanations</h1>
 
         <div class="bg-white shadow rounded-lg p-6 space-y-4">
+            {% for (name, description) in states_with_descriptions %}
             <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">📚</span>Study</h2>
-                <p class="mt-1 text-gray-700">Academic study, including course-related work and focused interview-preparation study. </p>
+                <h2 class="text-lg font-medium flex items-center">{{ name }}</h2>
+                <p class="mt-1 text-gray-700">{{ description }}</p>
             </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">💼</span>Work</h2>
-                <p class="mt-1 text-gray-700">Internship or professional work tasks, whether performed in the office or remotely from home. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">🚃</span>Commute</h2>
-                <p class="mt-1 text-gray-700">Regular travel to and from a fixed destination such as office or class. Spontaneous travel, tourism, or trips taken for leisure are <strong>NOT</strong> counted here. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">💻</span>Projects</h2>
-                <p class="mt-1 text-gray-700">Work on independent, non-coursework projects — personal or group. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">📺</span>Entertainment</h2>
-                <p class="mt-1 text-gray-700">All forms of entertainment and leisure activities, indoors or outdoors. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">💡</span>Exploration</h2>
-                <p class="mt-1 text-gray-700">Casual and interest-driven learning and exploration. This generally includes watching explanatory YouTube videos, reading blog posts, or watching documentaries. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">🥪</span>Maintenance</h2>
-                <p class="mt-1 text-gray-700">Routine personal maintenance: purchasing, preparing, and consuming food or drinks, as well as quick personal breaks such as toilet breaks. Meals longer than one hour should only have their first hour counted towards "Maintenance". </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">🛏️</span>Sleep</h2>
-                <p class="mt-1 text-gray-700">Time spent in bed for sleep or rest. Naps included. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">👔</span>Mission</h2>
-                <p class="mt-1 text-gray-700">Fulfilling personal responsibilities or duties to family, friends, or others. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">📆</span>Appointment</h2>
-                <p class="mt-1 text-gray-700">Scheduled appointments or meetings. This includes interviews, meetings, and career-related coffee-chats or meals. This does not include routine meetings at work. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">💬</span>Social</h2>
-                <p class="mt-1 text-gray-700">Time spent actively socialising with close friends or acquaintances. </p>
-            </section>
-
-            <section>
-                <h2 class="text-lg font-medium flex items-center"><span class="emoji">🚣‍♂️</span>Sports</h2>
-                <p class="mt-1 text-gray-700">Physical and sporting activities, including training and competition. </p>
-            </section>
+            {% endfor %}
 
             <hr class="my-4" />
         </div>
