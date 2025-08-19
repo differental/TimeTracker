@@ -61,15 +61,6 @@
     </ul>
 
     <script>
-        // mobile nav toggle (same as index)
-        const navToggle = document.getElementById('navToggle');
-        const mobileNav = document.getElementById('mobileNav');
-        navToggle?.addEventListener('click', () => {
-            const expanded = navToggle.getAttribute('aria-expanded') === 'true';
-            navToggle.setAttribute('aria-expanded', String(!expanded));
-            mobileNav.classList.toggle('hidden');
-        });
-
         // Read names
         function readNamesFromDOM() {
             const lis = document.querySelectorAll('#state-list li');

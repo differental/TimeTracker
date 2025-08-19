@@ -54,15 +54,6 @@
     {% include "footer.html" %}
 
     <script>
-        // mobile nav toggle
-        const navToggle = document.getElementById('navToggle');
-        const mobileNav = document.getElementById('mobileNav');
-        navToggle?.addEventListener('click', () => {
-            const expanded = navToggle.getAttribute('aria-expanded') === 'true';
-            navToggle.setAttribute('aria-expanded', String(!expanded));
-            mobileNav.classList.toggle('hidden');
-        });
-
         const start = Date.now() - {{ elapsed_ms }};
         const pad = n => n.toString().padStart(2,'0');
         setInterval(() => {

@@ -2,3 +2,13 @@
     <a href="https://github.com/" target="_blank">TimeTracker</a>
     v{{ version }}
 </footer>
+<script>
+    // mobile nav toggle
+    const navToggle = document.getElementById('navToggle');
+    const mobileNav = document.getElementById('mobileNav');
+    navToggle?.addEventListener('click', () => {
+        const expanded = navToggle.getAttribute('aria-expanded') === 'true';
+        navToggle.setAttribute('aria-expanded', String(!expanded));
+        mobileNav.classList.toggle('hidden');
+    });
+</script>
