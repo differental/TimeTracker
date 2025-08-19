@@ -15,7 +15,7 @@ use crate::{
 #[template(path = "index.html")]
 struct IndexPageTemplate<'a> {
     key: &'a str,
-    states: [&'a str; 10],
+    states: [&'a str; 12],
     current_page: &'a str,
     current_state: &'a str,
     elapsed_hms: String,
@@ -64,7 +64,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
 #[template(path = "summary.html")]
 struct SummaryPageTemplate<'a> {
     key: &'a str,
-    states: [&'a str; 10],
+    states: [&'a str; 12],
     current_page: &'a str,
     version: &'a str,
 }

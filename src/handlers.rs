@@ -1,17 +1,38 @@
 use axum::{
-    Json,
-    extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    extract::{Path, Query, State}, http::{HeaderMap, HeaderValue, StatusCode}, response::{IntoResponse, Response}, Json
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sled::IVec;
+use rust_embed::RustEmbed;
+use mime_guess::from_path;
 
 use crate::{
     constants::AppState,
     utils::{get_length, incr_length, read_from_value, to_ivec},
 };
+
+#[derive(RustEmbed)]
+#[folder = "static/"]
+struct Assets;
+
+pub async fn serve_embedded_assets(Path(file): Path<String>) -> Response {
+    match Assets::get(&file) {
+        Some(content) => {
+            let body = content.data.into_owned();
+            let mime = from_path(&file).first_or_octet_stream();
+
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "Content-Type",
+                HeaderValue::from_str(mime.as_ref()).unwrap(),
+            );
+
+            (StatusCode::OK, headers, body).into_response()
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
 
 #[derive(Deserialize)]
 pub struct AddEntryRequest {

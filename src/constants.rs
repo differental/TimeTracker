@@ -9,15 +9,17 @@ pub struct AppState {
     pub meta: Tree,
 }
 
-pub static STATES: [&str; 10] = [
+pub static STATES: [&str; 12] = [
     ("📚 Study"),
     ("💼 Work"),
     ("🚃 Commute"),
-    ("🚣‍♂️ Sports"),
+    ("💻 Projects"),
     ("📺 Entertainment"),
-    ("📆 Appointment"),
+    ("💡 Exploration"),
     ("🥪 Maintenance"),
     ("🛏️ Sleep"),
+    ("👔 Mission"),
+    ("📆 Appointment"),
     ("💬 Social"),
-    ("🍹 Day Out"),
+    ("🚣‍♂️ Sports"),
 ];

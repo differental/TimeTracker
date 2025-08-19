@@ -1,6 +1,5 @@
 use axum::{
-    Router, middleware,
-    routing::{get, post},
+    middleware, routing::{get, post}, Router
 };
 use std::{env, net::SocketAddr};
 use tokio::net::TcpListener;
@@ -12,7 +11,7 @@ mod constants;
 use constants::AppState;
 
 mod handlers;
-use handlers::{add_entry, fetch_data};
+use handlers::{add_entry, fetch_data, serve_embedded_assets};
 
 mod pages;
 use pages::{display_index, display_summary};
@@ -29,12 +28,19 @@ async fn main() -> anyhow::Result<()> {
 
     let app_state = AppState { events, meta };
 
-    let app = Router::new()
+    let protected_app = Router::new()
         .route("/", get(display_index))
         .route("/summary", get(display_summary))
         .route("/api/entry", post(add_entry))
         .route("/api/data", get(fetch_data))
-        .layer(middleware::from_fn(auth_user))
+        .layer(middleware::from_fn(auth_user));
+
+    let public_app = Router::new()
+        .route("/static/{*file}", get(serve_embedded_assets));
+
+    let app = Router::new()
+        .merge(protected_app)
+        .merge(public_app)
         .with_state(app_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 5555));
