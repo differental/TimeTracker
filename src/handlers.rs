@@ -17,6 +17,7 @@ use crate::{
 pub struct AddEntryRequest {
     new_state: u8, // 0-indexed state
     start_timestamp: i64,
+    force: Option<bool>,
 }
 
 // Response is same structure as request
@@ -35,11 +36,34 @@ pub async fn add_entry(
     let AddEntryRequest {
         new_state,
         start_timestamp,
+        force,
     } = payload;
 
-    // Add timestamp etc. checks here! Remember timestamps should be UTC
+    let now = Utc::now().timestamp_millis();
+    if force != Some(true) && (start_timestamp < now - 5000 || start_timestamp > now) {
+        return (StatusCode::BAD_REQUEST, "Bad request: Wrong timestamp").into_response();
+    }
 
     let new_key = incr_length(&mut state.meta) - 1;
+
+    if new_key >= 1 {
+        let (curr_state, curr_starttime) = read_from_value(&state.events, new_key - 1);
+
+        if curr_state == new_state {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Bad request: New state same as current state",
+            )
+                .into_response();
+        }
+        if start_timestamp < curr_starttime {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Bad request: New starttime earlier than current starttime",
+            )
+                .into_response();
+        }
+    }
 
     // Inserted element: First byte is new_state, next 8 bytes are start_timestamp
     let mut bytes = [0u8; 9];
