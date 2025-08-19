@@ -80,3 +80,22 @@ pub async fn display_summary() -> Response {
     let rendered = page.render().unwrap();
     (StatusCode::OK, Html(rendered)).into_response()
 }
+
+#[derive(Template)]
+#[template(path = "explanations.html")]
+struct ExplanationPageTemplate<'a> {
+    key: &'a str,
+    current_page: &'a str,
+    version: &'a str,
+}
+
+pub async fn display_explanations() -> Response {
+    let page = ExplanationPageTemplate {
+        key: &*ACCESS_KEY,
+        current_page: "summary",
+        version: env!("CARGO_PKG_VERSION"),
+    };
+
+    let rendered = page.render().unwrap();
+    (StatusCode::OK, Html(rendered)).into_response()
+}

@@ -1,11 +1,14 @@
 use axum::{
-    extract::{Path, Query, State}, http::{HeaderMap, HeaderValue, StatusCode}, response::{IntoResponse, Response}, Json
+    Json,
+    extract::{Path, Query, State},
+    http::{HeaderMap, HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
 };
 use chrono::Utc;
+use mime_guess::from_path;
+use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use sled::IVec;
-use rust_embed::RustEmbed;
-use mime_guess::from_path;
 
 use crate::{
     constants::AppState,
