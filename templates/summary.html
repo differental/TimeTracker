@@ -24,7 +24,7 @@
 
     <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
         <div class="mt-2 mb-4">
-            <h1 class="text-3xl md:text-2xl font-semibold">📊 Activity Breakdown</h1>
+            <h1 class="text-3xl md:text-2xl font-semibold">Activity Breakdown</h1>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -54,24 +54,15 @@
 
     {% include "footer.html" %}
 
-    <ul id="state-list" class="hidden">
-        {% for s in states %}
-        <li data-name="{{ s }}">{{ s }}</li>
-        {% endfor %}
-    </ul>
-
     <script>
-        // Read names
-        function readNamesFromDOM() {
-            const lis = document.querySelectorAll('#state-list li');
-            return Array.from(lis).map(li => li.getAttribute('data-name'));
-        }
-        const NAMES = readNamesFromDOM();
+        const NAMES = [
+            {% for s in states %}"{{s}}", {% endfor %}
+        ];
 
         // Palette
         const COLORS = [
-            "#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f",
-            "#edc949","#af7aa1","#ff9da7","#9c755f","#bab0ac"
+            "#2B6CB0","#153E75","#6B7280","#6D28D9","#E11D48","#06B6D4",
+            "#F59E0B","#312E81","#059669","#FBBF24","#FB7185","#84CC16"
         ];
 
         function msToReadable(ms) {
@@ -121,7 +112,7 @@
                 leftSpan.appendChild(colorDot);
                 const labelText = document.createElement('span');
                 labelText.className = 'text-lg md:text-sm';
-                labelText.textContent = NAMES[idx] || `State ${idx}`;
+                labelText.textContent = NAMES[idx];
                 leftSpan.appendChild(labelText);
 
                 const rightSpan = document.createElement('span');
@@ -148,7 +139,7 @@
                     return;
                 }
                 const data = await resp.json();
-                const arr = new Array(Math.max(data.length, NAMES.length)).fill(0).map((_, i) => data[i] || 0);
+                const arr = data;
                 const rangeLabel = (days === 1) ? "Last 24 hours" : `Last ${days} days`;
                 renderSegments(arr, rangeLabel);
             } catch (err) {
