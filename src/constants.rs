@@ -76,3 +76,18 @@ pub static STATES_WITH_DESCRIPTIONS: [(&str, &str); STATE_COUNT] = [
         "Physical and sporting activities, including training and competition.",
     ),
 ];
+
+pub static PIE_CHART_COLOURS: [&str; STATE_COUNT] = [
+    "#4a71ea", // Study
+    "#d4b37f", // Work
+    "#ff8c00", // Commute
+    "#c49aff", // Projects
+    "#ffe066", // Entertainment
+    "#2ecc71", // Exploration
+    "#b56a3b", // Maintenance
+    "#ffd6e8", // Sleep
+    "#008080", // Mission
+    "#6f42c1", // Appointment
+    "#ff6b6b", // Social
+    "#e74c3c", // Sports
+];

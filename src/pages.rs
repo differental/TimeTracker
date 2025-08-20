@@ -7,7 +7,9 @@ use axum::{
 use chrono::{TimeZone, Utc};
 
 use crate::{
-    constants::{ACCESS_KEY, AppState, STATE_COUNT, STATES, STATES_WITH_DESCRIPTIONS},
+    constants::{
+        ACCESS_KEY, AppState, PIE_CHART_COLOURS, STATE_COUNT, STATES, STATES_WITH_DESCRIPTIONS,
+    },
     utils::{get_length, read_from_value},
 };
 
@@ -65,6 +67,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
 struct SummaryPageTemplate<'a> {
     key: &'a str,
     states: [&'a str; STATE_COUNT],
+    colours: [&'a str; STATE_COUNT],
     current_page: &'a str,
     version: &'a str,
 }
@@ -73,6 +76,7 @@ pub async fn display_summary() -> Response {
     let page = SummaryPageTemplate {
         key: &*ACCESS_KEY,
         states: STATES,
+        colours: PIE_CHART_COLOURS,
         current_page: "summary",
         version: env!("CARGO_PKG_VERSION"),
     };

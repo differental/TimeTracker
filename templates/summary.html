@@ -59,10 +59,8 @@
             {% for s in states %}"{{s}}", {% endfor %}
         ];
 
-        // Palette
         const COLORS = [
-            "#2B6CB0","#153E75","#6B7280","#6D28D9","#E11D48","#06B6D4",
-            "#F59E0B","#312E81","#059669","#FBBF24","#FB7185","#84CC16"
+            {% for c in colours %}"{{c}}", {% endfor %}
         ];
 
         function msToReadable(ms) {
