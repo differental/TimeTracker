@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sled::IVec;
 
 use crate::{
-    constants::AppState,
+    constants::{AppState, STATE_COUNT},
     utils::{get_length, incr_length, read_from_value, to_ivec},
 };
 
@@ -126,7 +126,7 @@ pub async fn fetch_data(
         return (StatusCode::BAD_REQUEST).into_response();
     }
 
-    let mut cumulative = [0i64; 10];
+    let mut cumulative = [0i64; STATE_COUNT];
     let mut old_state: Option<u8> = None;
     let mut old_timestamp: Option<i64> = None;
 

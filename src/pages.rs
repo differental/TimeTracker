@@ -7,7 +7,7 @@ use axum::{
 use chrono::{TimeZone, Utc};
 
 use crate::{
-    constants::{ACCESS_KEY, AppState, STATES, STATES_WITH_DESCRIPTIONS},
+    constants::{ACCESS_KEY, AppState, STATE_COUNT, STATES, STATES_WITH_DESCRIPTIONS},
     utils::{get_length, read_from_value},
 };
 
@@ -15,7 +15,7 @@ use crate::{
 #[template(path = "index.html")]
 struct IndexPageTemplate<'a> {
     key: &'a str,
-    states: [&'a str; 12],
+    states: [&'a str; STATE_COUNT],
     current_page: &'a str,
     current_state: &'a str,
     elapsed_hms: String,
@@ -64,7 +64,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
 #[template(path = "summary.html")]
 struct SummaryPageTemplate<'a> {
     key: &'a str,
-    states: [&'a str; 12],
+    states: [&'a str; STATE_COUNT],
     current_page: &'a str,
     version: &'a str,
 }
@@ -86,7 +86,7 @@ pub async fn display_summary() -> Response {
 struct ExplanationPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
-    states_with_descriptions: [(&'a str, &'a str); 12],
+    states_with_descriptions: [(&'a str, &'a str); STATE_COUNT],
     version: &'a str,
 }
 

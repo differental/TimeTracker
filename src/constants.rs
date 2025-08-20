@@ -9,7 +9,9 @@ pub struct AppState {
     pub meta: Tree,
 }
 
-pub static STATES: [&str; 12] = [
+pub static STATE_COUNT: usize = 12;
+
+pub static STATES: [&str; STATE_COUNT] = [
     ("📚 Study"),
     ("💼 Work"),
     ("🚃 Commute"),
@@ -24,7 +26,7 @@ pub static STATES: [&str; 12] = [
     ("🚣‍♂️ Sports"),
 ];
 
-pub static STATES_WITH_DESCRIPTIONS: [(&str, &str); 12] = [
+pub static STATES_WITH_DESCRIPTIONS: [(&str, &str); STATE_COUNT] = [
     (
         "📚 Study",
         "Academic study, including course-related work and focused interview-preparation study.",
