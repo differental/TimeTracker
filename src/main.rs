@@ -44,10 +44,14 @@ async fn main() -> anyhow::Result<()> {
         .merge(public_app)
         .with_state(app_state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 5555));
+    let addr = env::var("ADDR")
+        .unwrap()
+        .parse::<SocketAddr>()
+        .expect("Wrong address format.");
+    let listener = TcpListener::bind(addr).await.unwrap();
+
     println!("Server running on {addr}");
 
-    let listener = TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 
     Ok(())
