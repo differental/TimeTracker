@@ -97,7 +97,7 @@ struct ExplanationPageTemplate<'a> {
 pub async fn display_explanations() -> Response {
     let page = ExplanationPageTemplate {
         key: &*ACCESS_KEY,
-        current_page: "summary",
+        current_page: "explanations",
         states_with_descriptions: STATES_WITH_DESCRIPTIONS,
         version: env!("CARGO_PKG_VERSION"),
     };
