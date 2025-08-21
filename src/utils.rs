@@ -44,6 +44,7 @@ pub fn incr_length(meta: &mut Tree) -> u64 {
 }
 
 pub fn read_from_value(events: &Tree, id: u64) -> (u8, i64) {
+    // TO-DO: Handle None and Err(_) gracefully
     let bytes = events.get(id.to_ne_bytes()).unwrap().unwrap();
     let state = u8::from_ne_bytes([bytes[0]]);
     let mut time_bytes = [0u8; 8];

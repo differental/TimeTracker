@@ -11,83 +11,92 @@ pub struct AppState {
 
 pub static STATE_COUNT: usize = 12;
 
-pub static STATES: [&str; STATE_COUNT] = [
-    ("📚 Study"),
-    ("💼 Work"),
-    ("🚃 Commute"),
-    ("💻 Projects"),
-    ("📺 Entertainment"),
-    ("💡 Exploration"),
-    ("🥪 Maintenance"),
-    ("🛏️ Sleep"),
-    ("👔 Mission"),
-    ("📆 Appointment"),
-    ("💬 Social"),
-    ("🚣‍♂️ Sports"),
+#[derive(Clone, Copy)]
+pub struct StateDetail<'a> {
+    pub emoji: &'a str,
+    pub name: &'a str,
+    pub description: &'a str,
+    pub colour: &'a str,
+}
+
+pub static ALL_STATES_DETAILS: [StateDetail; STATE_COUNT] = [
+    StateDetail {
+        emoji: "📚",
+        name: "Study",
+        description: "Academic study, including course-related work and focused interview-preparation study.",
+        colour: "#4a71ea",
+    },
+    StateDetail {
+        emoji: "💼",
+        name: "Work",
+        description: "Internship or professional work tasks, whether performed in the office or remotely from home.",
+        colour: "#d4b37f",
+    },
+    StateDetail {
+        emoji: "🚃",
+        name: "Commute",
+        description: "Regular travel to and from a fixed destination such as office or class. Spontaneous travel, tourism, or trips taken for leisure are NOT counted here.",
+        colour: "#ff8c00",
+    },
+    StateDetail {
+        emoji: "💻",
+        name: "Projects",
+        description: "Work on independent, non-coursework projects — personal or group.",
+        colour: "#c49aff",
+    },
+    StateDetail {
+        emoji: "📺",
+        name: "Entertainment",
+        description: "All forms of entertainment and leisure activities, indoors or outdoors.",
+        colour: "#ffe066",
+    },
+    StateDetail {
+        emoji: "💡",
+        name: "Exploration",
+        description: "Casual and interest-driven learning and exploration. This generally includes watching explanatory YouTube videos, reading blog posts, or watching documentaries.",
+        colour: "#2ecc71",
+    },
+    StateDetail {
+        emoji: "🥪",
+        name: "Maintenance",
+        description: "Routine personal maintenance: purchasing, preparing, and consuming food or drinks, as well as quick personal breaks such as toilet breaks. Meals longer than one hour should only have their first hour counted towards \"Maintenance\".",
+        colour: "#b56a3b",
+    },
+    StateDetail {
+        emoji: "🛏️",
+        name: "Sleep",
+        description: "Time spent in bed for sleep or rest. Naps included.",
+        colour: "#ffd6e8",
+    },
+    StateDetail {
+        emoji: "👔",
+        name: "Mission",
+        description: "Fulfilling personal responsibilities or duties to family, friends, or others.",
+        colour: "#008080",
+    },
+    StateDetail {
+        emoji: "📆",
+        name: "Appointment",
+        description: "Scheduled appointments or meetings. This includes interviews, meetings, and career-related coffee-chats or meals. This does not include routine meetings at work.",
+        colour: "#6f42c1",
+    },
+    StateDetail {
+        emoji: "💬",
+        name: "Social",
+        description: "Time spent actively socialising with close friends or acquaintances.",
+        colour: "#ff6b6b",
+    },
+    StateDetail {
+        emoji: "🚣‍♂️",
+        name: "Sports",
+        description: "Physical and sporting activities, including training and competition.",
+        colour: "#e74c3c",
+    },
 ];
 
-pub static STATES_WITH_DESCRIPTIONS: [(&str, &str); STATE_COUNT] = [
-    (
-        "📚 Study",
-        "Academic study, including course-related work and focused interview-preparation study.",
-    ),
-    (
-        "💼 Work",
-        "Internship or professional work tasks, whether performed in the office or remotely from home.",
-    ),
-    (
-        "🚃 Commute",
-        "Regular travel to and from a fixed destination such as office or class. Spontaneous travel, tourism, or trips taken for leisure are NOT counted here.",
-    ),
-    (
-        "💻 Projects",
-        "Work on independent, non-coursework projects — personal or group.",
-    ),
-    (
-        "📺 Entertainment",
-        "All forms of entertainment and leisure activities, indoors or outdoors.",
-    ),
-    (
-        "💡 Exploration",
-        "Casual and interest-driven learning and exploration. This generally includes watching explanatory YouTube videos, reading blog posts, or watching documentaries.",
-    ),
-    (
-        "🥪 Maintenance",
-        "Routine personal maintenance: purchasing, preparing, and consuming food or drinks, as well as quick personal breaks such as toilet breaks. Meals longer than one hour should only have their first hour counted towards \"Maintenance\".",
-    ),
-    (
-        "🛏️ Sleep",
-        "Time spent in bed for sleep or rest. Naps included.",
-    ),
-    (
-        "👔 Mission",
-        "Fulfilling personal responsibilities or duties to family, friends, or others.",
-    ),
-    (
-        "📆 Appointment",
-        "Scheduled appointments or meetings. This includes interviews, meetings, and career-related coffee-chats or meals. This does not include routine meetings at work.",
-    ),
-    (
-        "💬 Social",
-        "Time spent actively socialising with close friends or acquaintances.",
-    ),
-    (
-        "🚣‍♂️ Sports",
-        "Physical and sporting activities, including training and competition.",
-    ),
-];
-
-pub static PIE_CHART_COLOURS: [&str; STATE_COUNT] = [
-    "#4a71ea", // Study
-    "#d4b37f", // Work
-    "#ff8c00", // Commute
-    "#c49aff", // Projects
-    "#ffe066", // Entertainment
-    "#2ecc71", // Exploration
-    "#b56a3b", // Maintenance
-    "#ffd6e8", // Sleep
-    "#008080", // Mission
-    "#6f42c1", // Appointment
-    "#ff6b6b", // Social
-    "#e74c3c", // Sports
-];
+pub static IDLE_STATE: StateDetail = StateDetail {
+    emoji: "⏱️",
+    name: "IDLE — Not recorded",
+    description: "",
+    colour: "#FFF",
+};

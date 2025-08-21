@@ -20,10 +20,10 @@
         <h1 class="text-3xl font-semibold mb-4">Activity Explanations</h1>
 
         <div class="bg-white shadow rounded-lg p-6 space-y-4">
-            {% for (name, description) in states_with_descriptions %}
+            {% for s in states %}
             <section>
-                <h2 class="text-lg font-medium flex items-center">{{ name }}</h2>
-                <p class="mt-1 text-gray-700">{{ description }}</p>
+                <h2 class="text-lg font-medium flex items-center">{{ s.emoji }} {{ s.name }}</h2>
+                <p class="mt-1 text-gray-700">{{ s.description }}</p>
             </section>
             {% endfor %}
 

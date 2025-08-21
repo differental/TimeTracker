@@ -7,9 +7,7 @@ use axum::{
 use chrono::{TimeZone, Utc};
 
 use crate::{
-    constants::{
-        ACCESS_KEY, AppState, PIE_CHART_COLOURS, STATE_COUNT, STATES, STATES_WITH_DESCRIPTIONS,
-    },
+    constants::{ACCESS_KEY, ALL_STATES_DETAILS, AppState, IDLE_STATE, STATE_COUNT, StateDetail},
     utils::{get_length, read_from_value},
 };
 
@@ -17,10 +15,9 @@ use crate::{
 #[template(path = "index.html")]
 struct IndexPageTemplate<'a> {
     key: &'a str,
-    states: [&'a str; STATE_COUNT],
     current_page: &'a str,
-    current_state: &'a str,
-    elapsed_hms: String,
+    states: [StateDetail<'a>; STATE_COUNT],
+    current_state: StateDetail<'a>,
     elapsed_ms: i64,
     version: &'a str,
 }
@@ -29,11 +26,17 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     let last_id = get_length(&state.meta);
 
     if last_id == 0 {
-        return (
-            StatusCode::OK,
-            Html("<p>Send a POST request to get started</p>"),
-        )
-            .into_response();
+        let page = IndexPageTemplate {
+            key: &*ACCESS_KEY,
+            current_page: "index",
+            states: ALL_STATES_DETAILS,
+            current_state: IDLE_STATE,
+            elapsed_ms: 0,
+            version: env!("CARGO_PKG_VERSION"),
+        };
+
+        let rendered = page.render().unwrap();
+        return (StatusCode::OK, Html(rendered)).into_response();
     }
 
     let (curr_state, curr_starttime) = read_from_value(&state.events, last_id - 1);
@@ -41,19 +44,12 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     let now = Utc::now();
     let starttime = Utc.timestamp_millis_opt(curr_starttime).unwrap();
     let duration = now - starttime;
-    let (hours, minutes, seconds) = (
-        duration.num_hours(),
-        duration.num_minutes() - duration.num_hours() * 60,
-        duration.num_seconds() - duration.num_minutes() * 60,
-    );
-    let elapsed_hms = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
 
     let page = IndexPageTemplate {
         key: &*ACCESS_KEY,
-        states: STATES,
         current_page: "index",
-        current_state: STATES[curr_state as usize],
-        elapsed_hms,
+        states: ALL_STATES_DETAILS,
+        current_state: ALL_STATES_DETAILS[curr_state as usize],
         elapsed_ms: duration.num_milliseconds(),
         version: env!("CARGO_PKG_VERSION"),
     };
@@ -66,18 +62,16 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
 #[template(path = "summary.html")]
 struct SummaryPageTemplate<'a> {
     key: &'a str,
-    states: [&'a str; STATE_COUNT],
-    colours: [&'a str; STATE_COUNT],
     current_page: &'a str,
+    states: [StateDetail<'a>; STATE_COUNT],
     version: &'a str,
 }
 
 pub async fn display_summary() -> Response {
     let page = SummaryPageTemplate {
         key: &*ACCESS_KEY,
-        states: STATES,
-        colours: PIE_CHART_COLOURS,
         current_page: "summary",
+        states: ALL_STATES_DETAILS,
         version: env!("CARGO_PKG_VERSION"),
     };
 
@@ -90,7 +84,7 @@ pub async fn display_summary() -> Response {
 struct ExplanationPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
-    states_with_descriptions: [(&'a str, &'a str); STATE_COUNT],
+    states: [StateDetail<'a>; STATE_COUNT],
     version: &'a str,
 }
 
@@ -98,7 +92,7 @@ pub async fn display_explanations() -> Response {
     let page = ExplanationPageTemplate {
         key: &*ACCESS_KEY,
         current_page: "explanations",
-        states_with_descriptions: STATES_WITH_DESCRIPTIONS,
+        states: ALL_STATES_DETAILS,
         version: env!("CARGO_PKG_VERSION"),
     };
 

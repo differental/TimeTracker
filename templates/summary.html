@@ -55,12 +55,8 @@
     {% include "footer.html" %}
 
     <script>
-        const NAMES = [
-            {% for s in states %}"{{s}}", {% endfor %}
-        ];
-
-        const COLORS = [
-            {% for c in colours %}"{{c}}", {% endfor %}
+        const STATES_DATA = [
+            {% for s in states %}["{{ s.emoji }} {{ s.name }}", "{{ s.colour }}"], {% endfor %}
         ];
 
         function msToReadable(ms) {
@@ -86,7 +82,7 @@
             let offset = 25;
             msArray.forEach((ms, idx) => {
                 const percent = (ms / total) * 100;
-                const color = COLORS[idx % COLORS.length];
+                const color = STATES_DATA[idx][1];
 
                 const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                 circle.setAttribute("r", "16");
@@ -110,7 +106,7 @@
                 leftSpan.appendChild(colorDot);
                 const labelText = document.createElement('span');
                 labelText.className = 'text-lg md:text-sm';
-                labelText.textContent = NAMES[idx];
+                labelText.textContent = STATES_DATA[idx][0];
                 leftSpan.appendChild(labelText);
 
                 const rightSpan = document.createElement('span');
