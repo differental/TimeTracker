@@ -68,7 +68,7 @@ pub async fn add_entry(
         return (StatusCode::BAD_REQUEST, "Bad request: Wrong timestamp").into_response();
     }
 
-    let new_key = incr_length(&mut state.meta) - 1;
+    let new_key = get_length(&state.meta);
 
     if new_key >= 1 {
         let (curr_state, curr_starttime) = read_from_value(&state.events, new_key - 1);
@@ -101,6 +101,8 @@ pub async fn add_entry(
             return (StatusCode::INTERNAL_SERVER_ERROR, format!("{err}")).into_response();
         }
     }
+
+    incr_length(&mut state.meta);
 
     let response = AddEntryResponse {
         new_state,
