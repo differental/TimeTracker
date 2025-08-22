@@ -9,7 +9,9 @@ pub struct AppState {
     pub meta: Tree,
 }
 
-pub static STATE_COUNT: usize = 12;
+pub static STATE_COUNT: usize = 15;
+
+pub static EMERGENCY_STATE_INDEX: usize = 14;
 
 #[derive(Clone, Copy)]
 pub struct StateDetail<'a> {
@@ -91,6 +93,24 @@ pub static ALL_STATES_DETAILS: [StateDetail; STATE_COUNT] = [
         name: "Sports",
         description: "Physical and sporting activities, including training and competition.",
         colour: "#e74c3c",
+    },
+    StateDetail {
+        emoji: "🌴",
+        name: "Holiday",
+        description: "Spontaneous trips, alone or with friends & family. Travel to/from events also fall under this category, but study/work done during a \"holiday\" should be classed separately. If a meal forms a significant part of the experience, it should fall under this category, and Maintenance otherwise.",
+        colour: "#fff9ba",
+    },
+    StateDetail {
+        emoji: "⚫",
+        name: "Other",
+        description: "Items that don't fall under any category, or a temporary special marker for a certain event.",
+        colour: "#000000",
+    },
+    StateDetail {
+        emoji: "🚨",
+        name: "Emergency",
+        description: "Any emergencies that interrupt normal schedules. This should be undeclared as soon as the incident is no longer fully disrupting other scheduled activities.",
+        colour: "#ff0000",
     },
 ];
 

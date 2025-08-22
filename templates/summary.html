@@ -1,22 +1,14 @@
+{% let base_color %}
+{% if is_emergency %}
+{% let base_color = "red" %}
+{% else %}
+{% let base_color = "blue" %}
+{% endif %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TimeTracker — Summary</title>
-
     {% include "header.html" %}
-
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-        body { padding-top: 4.5rem; }
-
-        .legend-color { display:inline-block; border-radius:9999px; width:20px; height:20px; flex-shrink:0; margin-right:0.75rem; }
-        @media (min-width: 768px) {
-            .legend-color { width:12px; height:12px; margin-right:0.5rem; }
-        }
-    </style>
 </head>
 
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
@@ -48,7 +40,7 @@
         </div>
 
         <div class="mt-6 text-right">
-            <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-blue-600 text-white rounded shadow hover:opacity-95">Back</a>
+            <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-{{base_color}}-600 text-white rounded shadow hover:opacity-95">Back</a>
         </div>
     </main>
 

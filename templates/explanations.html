@@ -1,17 +1,14 @@
+{% let base_color %}
+{% if is_emergency %}
+{% let base_color = "red" %}
+{% else %}
+{% let base_color = "blue" %}
+{% endif %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TimeTracker — Activity Explanations</title>
-
     {% include "header.html" %}
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { padding-top: 4.5rem; }
-        .emoji { font-size: 1.4rem; line-height: 1; margin-right: 0.6rem; }
-    </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
     {% include "navbar.html" %}
@@ -31,7 +28,7 @@
         </div>
 
         <div class="mt-6 text-right">
-            <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-blue-600 text-white rounded shadow hover:opacity-95">Back</a>
+            <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-{{base_color}}-600 text-white rounded shadow hover:opacity-95">Back</a>
         </div>
     </main>
 
