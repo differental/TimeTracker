@@ -46,6 +46,10 @@
     {% include "footer.html" %}
 
     <script>
+        const STATES_NAMES = [
+            {% for s in states %}"{{ s.name }}", {% endfor %}
+        ];
+
         const start = Date.now() - {{ elapsed_ms }};
         const pad = n => n.toString().padStart(2,'0');
 
@@ -64,12 +68,32 @@
                 const newState = parseInt(ev.currentTarget.value, 10);
                 const payload = { new_state: newState, start_timestamp: Date.now() };
 
+                const result = await Swal.fire({
+                    icon: 'warning',
+                    title: 'Confirmation',
+                    text: `Change state to ${STATES_NAMES[newState]}?`,
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes',
+                    cancelButtonText: 'Cancel'
+                });
+
+                if (!result.isConfirmed) return;
+
                 try {
+                    Swal.fire({
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
                     const response = await fetch('/api/entry?key={{ key }}', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
+
+                    Swal.close();
 
                     if (!response.ok) {
                         const errText = await response.text();
@@ -81,15 +105,17 @@
 
                     Swal.fire({
                         icon: 'success',
-                        title: 'State changed',
+                        title: 'Update Successful',
                         text: 'State saved. Reloading...',
                         showConfirmButton: false,
-                        timer: 1500,
+                        timer: 2500,
                         timerProgressBar: true,
+                        allowOutsideClick: false,
                         willClose: () => location.reload()
                     });
 
                 } catch (err) {
+                    Swal.close();
                     const msg = (err && err.message) ? err.message : String(err);
                     await Swal.fire({ icon: 'error', title: 'Error', text: msg });
                 }
