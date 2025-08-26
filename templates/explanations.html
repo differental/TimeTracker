@@ -12,10 +12,8 @@
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
     {% include "navbar.html" %}
-
     <main class="flex-grow container mx-auto max-w-3xl px-4 py-10">
         <h1 class="text-3xl font-semibold mb-4">Activity Explanations</h1>
-
         <div class="bg-white shadow rounded-lg p-6 space-y-4">
             {% for s in states %}
             <section>
@@ -23,15 +21,12 @@
                 <p class="mt-1 text-gray-700">{{ s.description }}</p>
             </section>
             {% endfor %}
-
             <hr class="my-4" />
         </div>
-
         <div class="mt-6 text-right">
             <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-{{base_color}}-600 text-white rounded shadow hover:opacity-95">Back</a>
         </div>
     </main>
-
     {% include "footer.html" %}
 </body>
 </html>

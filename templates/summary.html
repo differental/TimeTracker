@@ -10,27 +10,22 @@
     <title>TimeTracker — Summary</title>
     {% include "header.html" %}
 </head>
-
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
     {% include "navbar.html" %}
-
     <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
         <div class="mt-2 mb-4">
             <h1 class="text-3xl md:text-2xl font-semibold">Activity Breakdown</h1>
         </div>
-
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div class="col-span-1 flex justify-center items-start">
                 <svg id="pie" class="pie-svg bg-white shadow rounded-lg w-full max-w-[420px] md:max-w-[320px]" width="320" height="320" viewBox="0 0 32 32" aria-hidden="true"></svg>
             </div>
-
             <div class="col-span-1">
                 <ul id="legend" class="bg-white shadow rounded-lg divide-y divide-gray-100">
                     <!-- populated by JS -->
                 </ul>
             </div>
         </div>
-
         <div class="mb-6">
             <div class="flex flex-col sm:flex-row gap-3">
                 <button class="range-btn block w-full sm:w-auto px-6 py-4 md:px-4 md:py-3 bg-white border border-gray-200 rounded shadow-sm text-lg md:text-base" data-range="1">24 h</button>
@@ -38,19 +33,15 @@
                 <button class="range-btn block w-full sm:w-auto px-6 py-4 md:px-4 md:py-3 bg-white border border-gray-200 rounded shadow-sm text-lg md:text-base" data-range="30">30 d</button>
             </div>
         </div>
-
         <div class="mt-6 text-right">
             <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-{{base_color}}-600 text-white rounded shadow hover:opacity-95">Back</a>
         </div>
     </main>
-
     {% include "footer.html" %}
-
     <script>
         const STATES_DATA = [
             {% for s in states %}["{{ s.emoji }} {{ s.name }}", "{{ s.colour }}"], {% endfor %}
         ];
-
         function msToReadable(ms) {
             if (!ms || ms <= 0) return "0m";
             const totalMinutes = Math.round(ms / 60000);
@@ -133,14 +124,12 @@
             }
         }
 
-        // wire up range buttons
         document.querySelectorAll('.range-btn').forEach(btn => {
             btn.addEventListener('click', (ev) => {
                 const days = parseInt(ev.currentTarget.getAttribute('data-range'), 10);
                 loadRange(days);
             });
         });
-
         document.addEventListener('DOMContentLoaded', () => loadRange(7));
     </script>
 </body>

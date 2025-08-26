@@ -11,45 +11,38 @@
     {% include "header.html" %}
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
     {% include "navbar.html" %}
-
     <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
         <div class="mt-2 mb-4">
             <h1 class="text-3xl md:text-2xl font-semibold">Current Activity</h1>
         </div>
-
         <div class="bg-white shadow rounded-lg mb-6">
             <div class="p-6 text-center flex flex-col items-center justify-center sm:min-h-0">
                 <h2 class="text-4xl md:text-3xl lg:text-4xl font-medium leading-tight" id="current-state">{{ current_state.emoji }} {{ current_state.name }}</h2>
                 <p id="elapsed" class="timer mt-4 text-6xl md:text-6xl lg:text-6xl font-semibold">-</p>
             </div>
         </div>
-
         <div class="mb-8">
             <div class="flex flex-col gap-4 lg:grid lg:grid-cols-3 lg:gap-4">
-            {% for s in states %}
+                {% for s in states %}
                 <div class="bg-white shadow rounded-md p-0 flex items-stretch">
                     <button type="button"
-                            class="change-state-btn w-full py-4 text-xl md:py-3 md:text-lg rounded-md border border-{{base_color}}-600 hover:bg-{{base_color}}-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-{{base_color}}-300 flex-1"
-                            value="{{ loop.index0 }}"
-                            aria-label="Change state to {{ s.name }}">
+                        class="change-state-btn w-full py-4 text-xl md:py-3 md:text-lg rounded-md border border-{{base_color}}-600 hover:bg-{{base_color}}-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-{{base_color}}-300 flex-1"
+                        value="{{ loop.index0 }}"
+                        aria-label="Change state to {{ s.name }}">
                     {{ s.emoji }} {{ s.name }}
                     </button>
                 </div>
-            {% endfor %}
+                {% endfor %}
             </div>
         </div>
     </main>
-
     {% include "footer.html" %}
-
     <script>
         const STATES_NAMES = [
             {% for s in states %}"{{ s.name }}", {% endfor %}
         ];
-
         const start = Date.now() - {{ elapsed_ms }};
         const pad = n => n.toString().padStart(2,'0');
 
@@ -61,13 +54,10 @@
             document.getElementById('elapsed').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
         }
 
-        setInterval(() => updateElapsed(), 1000);
-
         document.querySelectorAll('.change-state-btn').forEach(btn => {
             btn.addEventListener('click', async (ev) => {
                 const newState = parseInt(ev.currentTarget.value, 10);
                 const payload = { new_state: newState, start_timestamp: Date.now() };
-
                 const result = await Swal.fire({
                     icon: 'warning',
                     title: 'Confirmation',
@@ -76,7 +66,6 @@
                     confirmButtonText: 'Yes',
                     cancelButtonText: 'Cancel'
                 });
-
                 if (!result.isConfirmed) return;
 
                 try {
@@ -86,13 +75,11 @@
                             Swal.showLoading();
                         }
                     });
-
                     const response = await fetch('/api/entry?key={{ key }}', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-
                     Swal.close();
 
                     if (!response.ok) {
@@ -113,7 +100,6 @@
                         allowOutsideClick: false,
                         willClose: () => location.reload()
                     });
-
                 } catch (err) {
                     Swal.close();
                     const msg = (err && err.message) ? err.message : String(err);
@@ -122,6 +108,7 @@
             });
         });
 
+        setInterval(() => updateElapsed(), 1000);
         document.addEventListener('DOMContentLoaded', () => updateElapsed());
     </script>
 </body>
