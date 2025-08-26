@@ -54,7 +54,7 @@ pub struct AddEntryResponse {
 }
 
 pub async fn add_entry(
-    State(mut state): State<AppState>,
+    State(state): State<AppState>,
     Json(payload): Json<AddEntryRequest>,
 ) -> Response {
     let AddEntryRequest {
@@ -102,7 +102,7 @@ pub async fn add_entry(
         }
     }
 
-    incr_length(&mut state.meta);
+    incr_length(&state.meta);
 
     let response = AddEntryResponse {
         new_state,
@@ -160,4 +160,29 @@ pub async fn fetch_data(
     }
 
     (StatusCode::OK, Json(cumulative)).into_response()
+}
+
+pub async fn fetch_length(State(state): State<AppState>) -> Response {
+    let length = get_length(&state.meta);
+
+    (StatusCode::OK, Json(length)).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct ForceSetLengthRequest {
+    new_length: u64,
+}
+
+pub async fn force_set_length(
+    State(state): State<AppState>,
+    Json(payload): Json<ForceSetLengthRequest>,
+) -> Response {
+    let ForceSetLengthRequest { new_length } = payload;
+
+    let v = to_ivec(new_length);
+
+    // TO-DO: Handle Err(_) gracefully
+    state.meta.insert(b"len", v).unwrap();
+
+    (StatusCode::OK, Json(new_length)).into_response()
 }

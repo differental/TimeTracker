@@ -12,7 +12,7 @@ mod constants;
 use constants::AppState;
 
 mod handlers;
-use handlers::{add_entry, fetch_data, serve_embedded_assets};
+use handlers::{add_entry, fetch_data, fetch_length, force_set_length, serve_embedded_assets};
 
 mod pages;
 use pages::{display_explanations, display_index, display_summary};
@@ -35,6 +35,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/explanations", get(display_explanations))
         .route("/api/entry", post(add_entry))
         .route("/api/data", get(fetch_data))
+        .route("/api/length", get(fetch_length))
+        .route("/api/length", post(force_set_length))
         .layer(middleware::from_fn(auth_user));
 
     let public_app = Router::new().route("/static/{*file}", get(serve_embedded_assets));

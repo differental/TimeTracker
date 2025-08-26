@@ -28,7 +28,7 @@ pub fn get_length(meta: &Tree) -> u64 {
     }
 }
 
-pub fn incr_length(meta: &mut Tree) -> u64 {
+pub fn incr_length(meta: &Tree) -> u64 {
     // Inserts 0 if doesn't exist, returns new length
     let len = match meta.get(b"len").unwrap() {
         Some(val) => ivec_to_u64(val),
