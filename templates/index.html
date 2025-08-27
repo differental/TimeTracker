@@ -57,7 +57,6 @@
         document.querySelectorAll('.change-state-btn').forEach(btn => {
             btn.addEventListener('click', async (ev) => {
                 const newState = parseInt(ev.currentTarget.value, 10);
-                const payload = { new_state: newState, start_timestamp: Date.now() };
                 const result = await Swal.fire({
                     icon: 'warning',
                     title: 'Confirmation',
@@ -75,6 +74,7 @@
                             Swal.showLoading();
                         }
                     });
+                    const payload = { new_state: newState, start_timestamp: Date.now() };
                     const response = await fetch('/api/entry?key={{ key }}', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
