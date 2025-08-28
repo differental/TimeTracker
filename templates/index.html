@@ -1,9 +1,9 @@
-{% let base_color %}
-{% if is_emergency %}
-{% let base_color = "red" %}
-{% else %}
-{% let base_color = "blue" %}
-{% endif %}
+{%- let base_color -%}
+{%- if is_emergency -%}
+{%- let base_color = "red" -%}
+{%- else -%}
+{%- let base_color = "blue" -%}
+{%- endif -%}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,74 +40,15 @@
     </main>
     {% include "footer.html" %}
     <script>
+        window.ENTRY_KEY = "{{ key }}";
+        const start = Date.now() - {{ elapsed_ms }};
         const STATES_NAMES = [
             {% for s in states %}"{{ s.name }}", {% endfor %}
         ];
-        const start = Date.now() - {{ elapsed_ms }};
-
-        function updateElapsed() {
-            const d = Date.now() - start;
-            const h = Math.floor(d / 3600000);
-            const m = Math.floor((d % 3600000) / 60000);
-            const s = Math.floor((d % 60000) / 1000);
-            document.getElementById('elapsed').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
-        }
-
-        document.querySelectorAll('.change-state-btn').forEach(btn => {
-            btn.addEventListener('click', async (ev) => {
-                const newState = parseInt(ev.currentTarget.value, 10);
-                const result = await Swal.fire({
-                    icon: 'warning',
-                    title: 'Confirmation',
-                    text: `Change state to ${STATES_NAMES[newState]}?`,
-                    showCancelButton: true,
-                    confirmButtonText: 'Yes',
-                    cancelButtonText: 'Cancel'
-                });
-                if (!result.isConfirmed) return;
-
-                try {
-                    Swal.fire({
-                        allowOutsideClick: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
-                    const payload = { new_state: newState, start_timestamp: Date.now() };
-                    const response = await fetch('/api/entry?key={{ key }}', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    Swal.close();
-
-                    if (!response.ok) {
-                        const errText = await response.text();
-                        await Swal.fire({ icon: 'error', title: 'Error', text: errText });
-                        return;
-                    }
-
-                    await response.json();
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Update Successful',
-                        text: 'State saved. Reloading...',
-                        showConfirmButton: false,
-                        timer: 2000,
-                        timerProgressBar: true,
-                        willClose: () => location.reload()
-                    });
-                } catch (err) {
-                    Swal.close();
-                    const msg = (err && err.message) ? err.message : String(err);
-                    await Swal.fire({ icon: 'error', title: 'Error', text: msg });
-                }
-            });
-        });
 
         setInterval(() => updateElapsed(), 1000);
         document.addEventListener('DOMContentLoaded', () => updateElapsed());
     </script>
+    <script src="/static/js/index.js" defer></script>
 </body>
 </html>

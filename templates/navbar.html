@@ -1,9 +1,9 @@
-{% let base_color %}
-{% if is_emergency %}
-{% let base_color = "red" %}
-{% else %}
-{% let base_color = "blue" %}
-{% endif %}
+{%- let base_color -%}
+{%- if is_emergency -%}
+{%- let base_color = "red" -%}
+{%- else -%}
+{%- let base_color = "blue" -%}
+{%- endif -%}
 <nav class="bg-{{base_color}}-600 text-white p-4 fixed inset-x-0 top-0 z-50">
     <div class="max-w-5xl mx-auto flex justify-between items-center">
         <a href="/?key={{ key }}" class="flex items-center gap-2 font-bold text-xl">

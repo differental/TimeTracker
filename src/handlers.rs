@@ -199,7 +199,8 @@ pub async fn fetch_recent_states(
     let length = get_length(&state.meta);
     let count = length.min(params.count.unwrap_or(10u64));
 
-    let output = ((length - count)..=(length - 1)).rev()
+    let output = ((length - count)..=(length - 1))
+        .rev()
         .into_iter()
         .map(|i| read_from_value(&state.events, i))
         .collect::<Vec<(u8, i64)>>();
