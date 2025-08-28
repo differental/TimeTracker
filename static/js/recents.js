@@ -34,13 +34,18 @@ function buildRow(stateIdx, startMs, endMs) {
     return tr;
 }
 
-async function loadEvents(count) {
+async function loadEvents(count = 0, days = 1) {
     const tbody = document.getElementById('events-tbody');
     tbody.innerHTML = '';
     try {
-        const resp = await fetch(`/api/recents?key=${window.ENTRY_KEY}&count=${encodeURIComponent(String(count))}`);
+        const params = new URLSearchParams();
+        if (typeof count !== 'undefined' && count !== null && count !== 0) params.set('count', String(count));
+        if (typeof days !== 'undefined' && days !== null && days !== 0) params.set('days', String(days));
+        params.set('key', window.ENTRY_KEY);
+
+        const resp = await fetch(`/api/recents?${params.toString()}`);
         if (!resp.ok) {
-            const errText = await response.text();
+            const errText = await resp.text();
             await Swal.fire({ icon: 'error', title: 'Error', text: errText });
             return;
         }
@@ -65,34 +70,83 @@ async function loadEvents(count) {
     }
 }
 
-function wireButtons() {
-    const btn10 = document.getElementById('btn-10');
-    const btn30 = document.getElementById('btn-30');
-    const btnCustom = document.getElementById('btn-custom');
-    const customInput = document.getElementById('custom-count');
-    function setActiveButton(selected) {
-        [btn10, btn30].forEach(b => b.classList.remove('ring-2', `ring-${window.BASE_COLOR}-300`));
-        if (selected) selected.classList.add('ring-2', `ring-${window.BASE_COLOR}-300`);
+function wireFilters() {
+    const countSelect = document.getElementById('count-select');
+    const countCustom = document.getElementById('count-custom-input');
+    const daysSelect = document.getElementById('days-select');
+    const daysCustom = document.getElementById('days-custom-input');
+    const applyBtn = document.getElementById('apply-filters');
+
+    function toggleCustom(selectEl, customInputEl) {
+        if (selectEl.value === 'custom') {
+            customInputEl.classList.remove('hidden');
+            customInputEl.focus();
+        } else {
+            customInputEl.classList.add('hidden');
+        }
     }
-    btn10.addEventListener('click', () => {
-        customInput.value = 10;
-        setActiveButton(btn10);
-        loadEvents(10);
+
+    countSelect.addEventListener('change', () => {
+        toggleCustom(countSelect, countCustom);
+        if (countSelect.value !== 'custom') {
+            const r = parseInt(countSelect.value, 10);
+            if (!Number.isNaN(r) && r > 0) loadEvents(r, getDaysValue());
+        }
     });
-    btn30.addEventListener('click', () => {
-        customInput.value = 30;
-        setActiveButton(btn30);
-        loadEvents(30);
+
+    daysSelect.addEventListener('change', () => {
+        toggleCustom(daysSelect, daysCustom);
+        if (daysSelect.value !== 'custom') {
+            const d = parseInt(daysSelect.value, 10);
+            if (!Number.isNaN(d) && d > 0) loadEvents(getCountValue(), d);
+        }
     });
-    btnCustom.addEventListener('click', () => {
-        let n = parseInt(customInput.value, 10);
-        if (Number.isNaN(n) || n < 1) {
-            Swal.fire({ icon: 'error', title: 'Error', text: "Please enter a valid positive integer." });
+
+    // Allow pressing Enter on custom inputs to apply
+    [countCustom, daysCustom].forEach(inp => {
+        inp.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') applyBtn.click();
+        });
+    });
+
+    applyBtn.addEventListener('click', () => {
+        const r = getCountValue();
+        const d = getDaysValue();
+        if (!Number.isInteger(r) || r < 0) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Please enter a valid positive integer for items.' });
             return;
         }
-        setActiveButton(null);
-        loadEvents(n);
+        if (!Number.isInteger(d) || d < 0) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Please enter a valid positive integer for days.' });
+            return;
+        }
+        loadEvents(r, d);
     });
-    setActiveButton(btn10);
-    loadEvents(10);
+
+    function getCountValue() {
+        if (countSelect.value === 'custom') {
+            const n = parseInt(countCustom.value, 10);
+            return Number.isNaN(n) ? null : n;
+        }
+        const n = parseInt(countSelect.value, 10);
+        return Number.isNaN(n) ? null : n;
+    }
+
+    function getDaysValue() {
+        if (daysSelect.value === 'custom') {
+            const n = parseInt(daysCustom.value, 10);
+            return Number.isNaN(n) ? null : n;
+        }
+        const n = parseInt(daysSelect.value, 10);
+        return Number.isNaN(n) ? null : n;
+    }
+
+    countSelect.value = '0';
+    daysSelect.value = '1';
+    countCustom.value = '10';
+    daysCustom.value = '1';
+    toggleCustom(countSelect, countCustom);
+    toggleCustom(daysSelect, daysCustom);
+
+    loadEvents(0, 1);
 }

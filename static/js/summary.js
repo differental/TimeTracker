@@ -51,7 +51,7 @@ function renderSegments(msArray, rangeLabel) {
 
 async function loadRange(days) {
     try {
-        const resp = await fetch(`/api/data?key=${window.ENTRY_KEY}&range=${encodeURIComponent(days)}`);
+        const resp = await fetch(`/api/data?key=${window.ENTRY_KEY}&days=${encodeURIComponent(days)}`);
         if (!resp.ok) {
             const txt = await resp.text();
             alert("Error fetching data: " + txt);

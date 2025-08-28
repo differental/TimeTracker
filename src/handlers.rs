@@ -114,7 +114,7 @@ pub async fn add_entry(
 
 #[derive(Deserialize)]
 pub struct FetchSummaryDataRequest {
-    range: Option<u64>,
+    days: Option<u32>,
 }
 
 pub async fn fetch_summary_data(
@@ -133,7 +133,7 @@ pub async fn fetch_summary_data(
     let mut old_timestamp: Option<i64> = None;
 
     let curr_time = Utc::now().timestamp_millis();
-    let range_start = curr_time - params.range.unwrap_or(7) as i64 * 24 * 3600 * 1000;
+    let range_start = curr_time - params.days.unwrap_or(7u32) as i64 * 24 * 3600 * 1000;
 
     let mut pre_range_start_state: Option<u8> = None;
 
@@ -190,6 +190,7 @@ pub async fn force_set_length(
 #[derive(Deserialize)]
 pub struct FetchRecentsRequest {
     count: Option<u64>,
+    days: Option<u32>,
 }
 
 pub async fn fetch_recent_states(
@@ -197,12 +198,18 @@ pub async fn fetch_recent_states(
     State(state): State<AppState>,
 ) -> Response {
     let length = get_length(&state.meta);
-    let count = length.min(params.count.unwrap_or(10u64));
+    // Very large defaults since user may choose to pass in only one filter.
+    let count = length.min(params.count.unwrap_or(300u64));
+
+    let days = params.days.unwrap_or(30u32) as i64;
+    let curr_time = Utc::now().timestamp_millis();
+    let range_start = curr_time - days * 24 * 3600 * 1000;
 
     let output = ((length - count)..=(length - 1))
         .rev()
         .into_iter()
         .map(|i| read_from_value(&state.events, i))
+        .take_while(|(_, t)| *t >= range_start)
         .collect::<Vec<(u8, i64)>>();
 
     (StatusCode::OK, Json(output)).into_response()
