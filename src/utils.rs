@@ -1,6 +1,8 @@
 use num::traits::ToBytes;
 use sled::{IVec, Tree};
 
+use crate::constants::AppState;
+
 pub fn ivec_to_u64(v: IVec) -> u64 {
     let slice = v.as_ref();
     let mut bytes = [0u8; 8];
@@ -51,4 +53,14 @@ pub fn read_from_value(events: &Tree, id: u64) -> (u8, i64) {
     time_bytes.copy_from_slice(&bytes[1..]);
     let starttime = i64::from_ne_bytes(time_bytes);
     (state, starttime)
+}
+
+pub fn get_curr_state(state: &AppState) -> u8 {
+    // Returns current state, or if there's no state, u8::MAX
+    let length = get_length(&state.meta);
+    if length >= 1 {
+        read_from_value(&state.events, length - 1).0
+    } else {
+        u8::MAX
+    }
 }

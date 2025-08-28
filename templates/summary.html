@@ -42,18 +42,6 @@
         const STATES_DATA = [
             {% for s in states %}["{{ s.emoji }} {{ s.name }}", "{{ s.colour }}"], {% endfor %}
         ];
-        function msToReadable(ms) {
-            if (!ms || ms <= 0) return "0m";
-            const totalMinutes = Math.round(ms / 60000);
-            const days = Math.floor(totalMinutes / 1440);
-            const hours = Math.floor((totalMinutes % 1440) / 60);
-            const minutes = totalMinutes % 60;
-            const parts = [];
-            if (days) parts.push(days + 'd');
-            if (hours) parts.push(hours + 'h');
-            if (minutes || parts.length === 0) parts.push(minutes + 'm');
-            return parts.join(' ');
-        }
 
         function renderSegments(msArray, rangeLabel) {
             const total = msArray.reduce((a,b) => a + b, 0) || 1;
@@ -102,7 +90,6 @@
 
                 offset = offset - percent;
             });
-
             const labelEl = document.getElementById('range-label');
             if (labelEl) labelEl.textContent = rangeLabel;
         }

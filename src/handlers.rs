@@ -113,12 +113,12 @@ pub async fn add_entry(
 }
 
 #[derive(Deserialize)]
-pub struct FetchDataRequest {
+pub struct FetchSummaryDataRequest {
     range: Option<u64>,
 }
 
-pub async fn fetch_data(
-    Query(params): Query<FetchDataRequest>,
+pub async fn fetch_summary_data(
+    Query(params): Query<FetchSummaryDataRequest>,
     State(state): State<AppState>,
 ) -> Response {
     // Very naive brute-force approach just to get the thing working
@@ -185,4 +185,24 @@ pub async fn force_set_length(
     state.meta.insert(b"len", v).unwrap();
 
     (StatusCode::OK, Json(new_length)).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct FetchRecentsRequest {
+    count: Option<u64>,
+}
+
+pub async fn fetch_recent_states(
+    Query(params): Query<FetchRecentsRequest>,
+    State(state): State<AppState>,
+) -> Response {
+    let length = get_length(&state.meta);
+    let count = length.min(params.count.unwrap_or(10u64));
+
+    let output = ((length - count)..=(length - 1)).rev()
+        .into_iter()
+        .map(|i| read_from_value(&state.events, i))
+        .collect::<Vec<(u8, i64)>>();
+
+    (StatusCode::OK, Json(output)).into_response()
 }

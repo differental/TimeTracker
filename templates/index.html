@@ -44,7 +44,6 @@
             {% for s in states %}"{{ s.name }}", {% endfor %}
         ];
         const start = Date.now() - {{ elapsed_ms }};
-        const pad = n => n.toString().padStart(2,'0');
 
         function updateElapsed() {
             const d = Date.now() - start;
@@ -95,9 +94,8 @@
                         title: 'Update Successful',
                         text: 'State saved. Reloading...',
                         showConfirmButton: false,
-                        timer: 2500,
+                        timer: 2000,
                         timerProgressBar: true,
-                        allowOutsideClick: false,
                         willClose: () => location.reload()
                     });
                 } catch (err) {
