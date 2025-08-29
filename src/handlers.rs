@@ -124,11 +124,12 @@ pub async fn fetch_summary_data(
     // Very naive brute-force approach just to get the thing working
     let len = get_length(&state.meta);
 
+    let mut cumulative = [0i64; STATE_COUNT];
+
     if len == 0 {
-        return (StatusCode::BAD_REQUEST).into_response();
+        return (StatusCode::OK, Json(cumulative)).into_response();
     }
 
-    let mut cumulative = [0i64; STATE_COUNT];
     let mut old_state: Option<u8> = None;
     let mut old_timestamp: Option<i64> = None;
 
@@ -198,16 +199,22 @@ pub async fn fetch_recent_states(
     State(state): State<AppState>,
 ) -> Response {
     let length = get_length(&state.meta);
+
     // Very large defaults since user may choose to pass in only one filter.
     let count = length.min(params.count.unwrap_or(300u64));
-
     let days = params.days.unwrap_or(30u32) as i64;
+
+    // If count == 0 (user passed in 0 or length == 0), we should return
+    //   an empty vector rather than panic later with out-of-bounds access.
+    if count == 0 {
+        return (StatusCode::OK, Json(Vec::<(u8, i64)>::new())).into_response();
+    }
+
     let curr_time = Utc::now().timestamp_millis();
     let range_start = curr_time - days * 24 * 3600 * 1000;
 
     let output = ((length - count)..=(length - 1))
         .rev()
-        .into_iter()
         .map(|i| read_from_value(&state.events, i))
         .take_while(|(_, t)| *t >= range_start)
         .collect::<Vec<(u8, i64)>>();
