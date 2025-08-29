@@ -39,6 +39,8 @@ async function loadEvents(count = 0, days = 1) {
     tbody.innerHTML = '';
     try {
         const params = new URLSearchParams();
+        // 0 means N/A - ignoring the limit in either count or days. Here we don't pass it in.
+        // Note the backend logic actually replaces Nones with very large defaults (300 count, 30 days).
         if (typeof count !== 'undefined' && count !== null && count !== 0) params.set('count', String(count));
         if (typeof days !== 'undefined' && days !== null && days !== 0) params.set('days', String(days));
         params.set('key', window.ENTRY_KEY);
@@ -90,7 +92,7 @@ function wireFilters() {
         toggleCustom(countSelect, countCustom);
         if (countSelect.value !== 'custom') {
             const r = parseInt(countSelect.value, 10);
-            if (!Number.isNaN(r) && r > 0) loadEvents(r, getDaysValue());
+            if (!Number.isNaN(r)) loadEvents(r, getDaysValue());
         }
     });
 
@@ -98,7 +100,7 @@ function wireFilters() {
         toggleCustom(daysSelect, daysCustom);
         if (daysSelect.value !== 'custom') {
             const d = parseInt(daysSelect.value, 10);
-            if (!Number.isNaN(d) && d > 0) loadEvents(getCountValue(), d);
+            if (!Number.isNaN(d)) loadEvents(getCountValue(), d);
         }
     });
 

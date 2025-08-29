@@ -200,12 +200,13 @@ pub async fn fetch_recent_states(
 ) -> Response {
     let length = get_length(&state.meta);
 
-    // Very large defaults since user may choose to pass in only one filter.
+    // If the user doesn't pass in either param, we use these very large defaults.
     let count = length.min(params.count.unwrap_or(300u64));
     let days = params.days.unwrap_or(30u32) as i64;
 
-    // If count == 0 (user passed in 0 or length == 0), we should return
-    //   an empty vector rather than panic later with out-of-bounds access.
+    // User is guarded against specifying params.count = 0 by frontend, but we
+    //   should return an empty vector rather than panic with out-of-bounds access.
+    // This also happens if length == 0.
     if count == 0 {
         return (StatusCode::OK, Json(Vec::<(u8, i64)>::new())).into_response();
     }
