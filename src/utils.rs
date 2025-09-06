@@ -37,7 +37,7 @@ pub fn incr_length(meta: &Tree) -> u64 {
         None => 0,
     };
 
-    let v = to_ivec((len + 1) as u64);
+    let v = to_ivec(len + 1);
 
     // TO-DO: Handle Err(_) gracefully
     meta.insert(b"len", v).unwrap();

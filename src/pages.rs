@@ -31,7 +31,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
 
     if last_id == 0 {
         let page = IndexPageTemplate {
-            key: &*ACCESS_KEY,
+            key: &ACCESS_KEY,
             current_page: "index",
             states: ALL_STATES_DETAILS,
             current_state: IDLE_STATE,
@@ -51,7 +51,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     let duration = now - starttime;
 
     let page = IndexPageTemplate {
-        key: &*ACCESS_KEY,
+        key: &ACCESS_KEY,
         current_page: "index",
         states: ALL_STATES_DETAILS,
         current_state: ALL_STATES_DETAILS[curr_state as usize],
@@ -76,7 +76,7 @@ struct SummaryPageTemplate<'a> {
 
 pub async fn display_summary(State(state): State<AppState>) -> Response {
     let page = SummaryPageTemplate {
-        key: &*ACCESS_KEY,
+        key: &ACCESS_KEY,
         current_page: "summary",
         states: ALL_STATES_DETAILS,
         is_emergency: get_curr_state(&state) as usize == EMERGENCY_STATE_INDEX,
@@ -99,7 +99,7 @@ struct ExplanationPageTemplate<'a> {
 
 pub async fn display_explanations(State(state): State<AppState>) -> Response {
     let page = ExplanationPageTemplate {
-        key: &*ACCESS_KEY,
+        key: &ACCESS_KEY,
         current_page: "explanations",
         states: ALL_STATES_DETAILS,
         is_emergency: get_curr_state(&state) as usize == EMERGENCY_STATE_INDEX,
@@ -122,7 +122,7 @@ struct RecentsPageTemplate<'a> {
 
 pub async fn display_recents(State(state): State<AppState>) -> Response {
     let page = RecentsPageTemplate {
-        key: &*ACCESS_KEY,
+        key: &ACCESS_KEY,
         current_page: "recents",
         states: ALL_STATES_DETAILS,
         is_emergency: get_curr_state(&state) as usize == EMERGENCY_STATE_INDEX,
