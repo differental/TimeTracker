@@ -44,11 +44,9 @@ pub struct AddEntryRequest {
     force: Option<bool>,
 }
 
-// Response is same structure as request
-//   to symbolise that a request has been
-//   acknowledged
 #[derive(Serialize)]
 pub struct AddEntryResponse {
+    entry_idx: u64,
     new_state: u8,
     start_timestamp: i64,
 }
@@ -105,6 +103,95 @@ pub async fn add_entry(
     incr_length(&state.meta);
 
     let response = AddEntryResponse {
+        entry_idx: new_key,
+        new_state,
+        start_timestamp,
+    };
+
+    (StatusCode::OK, Json(response)).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct UpdateEntryRequest {
+    new_state: Option<u8>,
+    start_timestamp: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct UpdateEntryResponse {
+    entry_idx: u64,
+    new_state: u8,
+    start_timestamp: i64,
+}
+
+pub async fn update_entry(
+    Path(entry_idx): Path<u64>,
+    State(state): State<AppState>,
+    Json(payload): Json<UpdateEntryRequest>,
+) -> Response {
+    let UpdateEntryRequest {
+        new_state,
+        start_timestamp,
+    } = payload;
+
+    // perform basic validation
+    let length = get_length(&state.meta);
+
+    if entry_idx >= length {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Bad request: Entry index out of range",
+        )
+            .into_response();
+    }
+
+    if start_timestamp.is_none() && new_state.is_none() {
+        return (StatusCode::BAD_REQUEST, "Bad request: No changes specified").into_response();
+    }
+
+    if let Some(curr_start_time) = start_timestamp {
+        if entry_idx > 0 {
+            let (_, last_start_time) = read_from_value(&state.events, entry_idx - 1);
+            if curr_start_time < last_start_time {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "Bad request: New starttime earlier than previous event",
+                )
+                    .into_response();
+            }
+        }
+
+        if entry_idx < length - 1 {
+            let (_, next_start_time) = read_from_value(&state.events, entry_idx + 1);
+            if curr_start_time > next_start_time {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    "Bad request: New starttime later than next event",
+                )
+                    .into_response();
+            }
+        }
+    }
+
+    let (original_new_state, original_start_timestamp) = read_from_value(&state.events, entry_idx);
+    let new_state = new_state.unwrap_or(original_new_state);
+    let start_timestamp = start_timestamp.unwrap_or(original_start_timestamp);
+
+    // Inserted element: First byte is new_state, next 8 bytes are start_timestamp
+    let mut bytes = [0u8; 9];
+    bytes[0] = new_state;
+    bytes[1..].copy_from_slice(&start_timestamp.to_ne_bytes());
+
+    match state.events.insert(to_ivec(entry_idx), IVec::from(&bytes)) {
+        Ok(_) => (),
+        Err(err) => {
+            println!("{err:?}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("{err}")).into_response();
+        }
+    }
+
+    let response = UpdateEntryResponse {
+        entry_idx,
         new_state,
         start_timestamp,
     };

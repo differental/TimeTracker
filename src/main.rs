@@ -1,6 +1,6 @@
 use axum::{
     Router, middleware,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use std::{env, net::SocketAddr};
 use tokio::net::TcpListener;
@@ -14,7 +14,7 @@ use constants::AppState;
 mod handlers;
 use handlers::{
     add_entry, fetch_length, fetch_recent_states, fetch_summary_data, force_set_length,
-    serve_embedded_assets,
+    serve_embedded_assets, update_entry,
 };
 
 mod pages;
@@ -38,6 +38,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/explanations", get(display_explanations))
         .route("/recents", get(display_recents))
         .route("/api/entry", post(add_entry))
+        .route("/api/entry/{entry_idx}", put(update_entry))
         .route("/api/data", get(fetch_summary_data))
         .route("/api/length", get(fetch_length))
         .route("/api/length", post(force_set_length))
