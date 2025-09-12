@@ -199,6 +199,37 @@ pub async fn update_entry(
     (StatusCode::OK, Json(response)).into_response()
 }
 
+#[derive(Serialize)]
+pub struct GetEntryResponse {
+    entry_idx: u64,
+    new_state: u8,
+    start_timestamp: i64,
+}
+
+pub async fn get_entry(Path(entry_idx): Path<u64>, State(state): State<AppState>) -> Response {
+    let length = get_length(&state.meta);
+
+    if entry_idx >= length {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Bad request: Entry index out of range",
+        )
+            .into_response();
+    }
+
+    let (new_state, start_timestamp) = read_from_value(&state.events, entry_idx);
+
+    (
+        StatusCode::OK,
+        Json(GetEntryResponse {
+            entry_idx,
+            new_state,
+            start_timestamp,
+        }),
+    )
+        .into_response()
+}
+
 #[derive(Deserialize)]
 pub struct FetchSummaryDataRequest {
     days: Option<u32>,
