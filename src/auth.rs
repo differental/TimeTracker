@@ -35,13 +35,11 @@ pub async fn auth_user(
 ) -> impl IntoResponse {
     // Authentication layer, checks query param against key
 
-    if let Some(ref val) = params.key {
-        if val.trim() != *ACCESS_KEY {
-            return (StatusCode::FORBIDDEN).into_response();
-        }
-    } else {
-        return (StatusCode::FORBIDDEN).into_response();
+    if let Some(ref val) = params.key
+        && val.trim() == *ACCESS_KEY
+    {
+        return next.run(request).await;
     }
 
-    next.run(request).await
+    (StatusCode::FORBIDDEN).into_response()
 }
