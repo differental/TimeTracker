@@ -7,8 +7,6 @@ services:
       - 5555:3000
     volumes:
       - tt_data:/app/data
-    env_file:
-      - .env
 
 volumes:
   tt_data:
