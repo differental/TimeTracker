@@ -32,9 +32,7 @@ RUN adduser \
     --shell "/sbin/nologin" \
     --no-create-home \
     --uid "${UID}" \
-    appuser \
-    && mkdir -p /app/data \
-    && chown -R appuser:appuser /app/data
+    appuser
 USER appuser
 
 COPY --from=build /bin/server /bin/
