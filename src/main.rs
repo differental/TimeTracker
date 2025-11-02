@@ -39,7 +39,8 @@ mod utils;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv()?;
+    // Allow .env to not exist and environment variables to be passed directly, for example in Docker
+    dotenvy::dotenv().ok();
 
     let db = sled::open(env::var("DB_PATH").unwrap())?;
     let events = db.open_tree("events")?;
