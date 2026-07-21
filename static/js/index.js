@@ -9,15 +9,46 @@ function updateElapsed() {
 document.querySelectorAll('.change-state-btn').forEach(btn => {
     btn.addEventListener('click', async (ev) => {
         const newState = parseInt(ev.currentTarget.value, 10);
+        // `start` (from index.html) is the current activity's start time - the
+        // earliest legal start for the next activity. Default the picker to now.
+        const nowVal = msToDatetimeLocal(Date.now());
+        const minVal = msToDatetimeLocal(start);
         const result = await Swal.fire({
             icon: 'warning',
             title: 'Confirmation',
-            text: `Change state to ${STATES_NAMES[newState]}?`,
+            html: `
+                <p style="margin-bottom:0.75rem;">Change state to <strong>${STATES_NAMES[newState]}</strong>?</p>
+                <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
+            `,
             showCancelButton: true,
             confirmButtonText: 'Yes',
-            cancelButtonText: 'Cancel'
+            cancelButtonText: 'Cancel',
+            focusConfirm: false,
+            preConfirm: () => {
+                const el = document.getElementById('switch-start-input');
+                const val = el && el.value;
+                if (!val) {
+                    Swal.showValidationMessage('Please choose a start time.');
+                    return false;
+                }
+                const ms = new Date(val).getTime();
+                if (Number.isNaN(ms)) {
+                    Swal.showValidationMessage('Invalid date/time.');
+                    return false;
+                }
+                if (ms > Date.now()) {
+                    Swal.showValidationMessage('Start time cannot be in the future.');
+                    return false;
+                }
+                if (ms < start) {
+                    Swal.showValidationMessage('Start time must be after the current activity started.');
+                    return false;
+                }
+                return ms;
+            }
         });
         if (!result.isConfirmed) return;
+        const startTimestamp = result.value;
 
         try {
             Swal.fire({
@@ -26,7 +57,10 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
                     Swal.showLoading();
                 }
             });
-            const payload = { new_state: newState, start_timestamp: Date.now() };
+            // force: true lets add_entry accept a backdated start (it otherwise
+            // rejects timestamps older than ~5s). The picker already guards
+            // start < ts <= now, and the backend still enforces ordering.
+            const payload = { new_state: newState, start_timestamp: startTimestamp, force: true };
             const response = await fetch(`/api/entry?key=${window.ENTRY_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

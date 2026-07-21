@@ -1,4 +1,8 @@
-function buildRow(stateIdx, startMs, endMs) {
+// Remember the last-applied filter so we can reload the table after an edit.
+let lastCount = 0;
+let lastDays = 1;
+
+function buildRow(stateIdx, startMs, endMs, entryIdx) {
     const tr = document.createElement('tr');
     const stateTd = document.createElement('td');
     stateTd.className = 'px-6 py-4 whitespace-nowrap text-sm';
@@ -27,17 +31,101 @@ function buildRow(stateIdx, startMs, endMs) {
     const durationMs = Number(endMs) - Number(startMs);
     durTd.textContent = msToReadable(durationMs);
 
+    const editTd = document.createElement('td');
+    editTd.className = 'px-6 py-4 whitespace-nowrap text-right text-sm';
+    // entryIdx is null when we couldn't determine the global index (e.g. the
+    // length lookup failed) - omit the button rather than risk editing the wrong row.
+    if (Number.isInteger(entryIdx) && entryIdx >= 0) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `edit-btn text-${window.BASE_COLOR || 'blue'}-600 hover:underline font-medium`;
+        btn.textContent = 'Edit';
+        btn.setAttribute('aria-label', 'Edit start time');
+        btn.addEventListener('click', () => openEditDialog(entryIdx, startMs));
+        editTd.appendChild(btn);
+    }
+
     tr.appendChild(stateTd);
     tr.appendChild(startTd);
     tr.appendChild(endTd);
     tr.appendChild(durTd);
+    tr.appendChild(editTd);
     return tr;
 }
 
+// Opens a SweetAlert dialog to edit a single entry's start time and PUTs the
+// change. The backend (PUT /api/entry/{idx}) validates that the new start stays
+// between the neighbouring entries and returns the error text on violation.
+async function openEditDialog(entryIdx, startMs) {
+    const initial = msToDatetimeLocal(startMs);
+    const result = await Swal.fire({
+        title: 'Edit start time',
+        html: `<input id="edit-start-input" type="datetime-local" class="swal2-input" value="${initial}" step="60">`,
+        showCancelButton: true,
+        confirmButtonText: 'Save',
+        cancelButtonText: 'Cancel',
+        focusConfirm: false,
+        didOpen: () => {
+            const el = document.getElementById('edit-start-input');
+            if (el) el.focus();
+        },
+        preConfirm: async () => {
+            const el = document.getElementById('edit-start-input');
+            const val = el && el.value;
+            if (!val) {
+                Swal.showValidationMessage('Please choose a date and time.');
+                return false;
+            }
+            const ms = new Date(val).getTime();
+            if (Number.isNaN(ms)) {
+                Swal.showValidationMessage('Invalid date/time.');
+                return false;
+            }
+            try {
+                const resp = await fetch(`/api/entry/${entryIdx}?key=${encodeURIComponent(window.ENTRY_KEY)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start_timestamp: ms })
+                });
+                if (!resp.ok) {
+                    Swal.showValidationMessage(await resp.text());
+                    return false;
+                }
+                return await resp.json();
+            } catch (err) {
+                Swal.showValidationMessage((err && err.message) ? err.message : String(err));
+                return false;
+            }
+        }
+    });
+
+    if (result.isConfirmed) {
+        await Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
+        loadEvents(lastCount, lastDays);
+    }
+}
+
 async function loadEvents(count = 0, days = 1) {
+    lastCount = count;
+    lastDays = days;
     const tbody = document.getElementById('events-tbody');
     tbody.innerHTML = '';
     try {
+        // Recents entries come back newest-first without their global index, but
+        // the feed always starts at the newest entry (len-1) and the days cutoff
+        // only trims the old tail, so row i is entry index len-1-i. Fetch the total
+        // length to map rows to indices for editing.
+        let length = null;
+        try {
+            const lenResp = await fetch(`/api/length?key=${encodeURIComponent(window.ENTRY_KEY)}`);
+            if (lenResp.ok) {
+                const n = Number(await lenResp.json());
+                if (Number.isFinite(n)) length = n;
+            }
+        } catch (_) {
+            length = null;
+        }
+
         const params = new URLSearchParams();
         // 0 means N/A - ignoring the limit in either count or days. Here we don't pass it in.
         // Note the backend logic actually replaces Nones with very large defaults (300 count, 30 days).
@@ -62,7 +150,8 @@ async function loadEvents(count = 0, days = 1) {
             const stateIdx = entry[0];
             const startMs = Number(entry[1]);
             const endMs = (i === 0) ? Date.now() : Number(data[i - 1][1]);
-            const row = buildRow(stateIdx, startMs, endMs);
+            const entryIdx = (length !== null) ? (length - 1 - i) : null;
+            const row = buildRow(stateIdx, startMs, endMs, entryIdx);
             tbody.appendChild(row);
         }
     } catch (err) {
