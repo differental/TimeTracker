@@ -5,17 +5,17 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0"
-askama = "0.15"
+askama = "0.16"
 axum = { version = "0.8", features = ["macros"] }
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 mime_guess = "2.0"
 num = "0.4"
-rust-embed = "8.11"
+rust-embed = "8.12"
 serde = { version = "1.0", features = ["derive"] }
 sled = "0.34"
 tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.6", features = ["fs"] }
+tower-http = { version = "0.7", features = ["fs"] }
 
 [profile.release-prod]
 inherits = "release"
