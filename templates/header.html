@@ -12,4 +12,9 @@
     @media (min-width: 768px) {
         .legend-color { width:12px; height:12px; margin-right:0.5rem; }
     }
+    /* Per-row edit button: hidden until hover on mouse devices, always
+       visible/tappable on touch devices (which have no hover). */
+    .edit-btn { opacity: 0; transition: opacity .15s ease; }
+    tr:hover .edit-btn, .edit-btn:focus-visible { opacity: 1; }
+    @media (hover: none) { .edit-btn { opacity: 1; } }
 </style>

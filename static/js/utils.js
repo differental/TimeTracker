@@ -26,3 +26,17 @@ function formatRounded(ms) {
 }
 
 const pad = n => n.toString().padStart(2,'0');
+
+// Format a ms timestamp as a local `YYYY-MM-DDTHH:MM` string for a
+// `datetime-local` input value. Rounds to the minute to match formatRounded's
+// display granularity. Read back with `new Date(value).getTime()` (local).
+function msToDatetimeLocal(ms) {
+    const d = new Date(Number(ms));
+    d.setSeconds(0, 0);
+    const y = d.getFullYear();
+    const mo = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const h = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${y}-${mo}-${day}T${h}:${mi}`;
+}
