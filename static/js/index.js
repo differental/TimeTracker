@@ -23,7 +23,6 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
             showCancelButton: true,
             confirmButtonText: 'Yes',
             cancelButtonText: 'Cancel',
-            focusConfirm: false,
             preConfirm: () => {
                 const el = document.getElementById('switch-start-input');
                 const val = el && el.value;

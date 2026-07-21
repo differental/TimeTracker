@@ -64,11 +64,6 @@ async function openEditDialog(entryIdx, startMs) {
         showCancelButton: true,
         confirmButtonText: 'Save',
         cancelButtonText: 'Cancel',
-        focusConfirm: false,
-        didOpen: () => {
-            const el = document.getElementById('edit-start-input');
-            if (el) el.focus();
-        },
         preConfirm: async () => {
             const el = document.getElementById('edit-start-input');
             const val = el && el.value;
