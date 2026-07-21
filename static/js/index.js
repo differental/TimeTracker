@@ -18,9 +18,7 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
             title: 'Confirmation',
             html: `
                 <p style="margin-bottom:0.75rem;">Change state to <strong>${STATES_NAMES[newState]}</strong>?</p>
-                <label for="switch-start-input" style="display:block;text-align:left;font-size:0.85rem;color:#374151;margin-bottom:0.25rem;">Start time</label>
                 <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
-                <p style="font-size:0.8rem;color:#6b7280;margin-top:0.5rem;">Defaults to now. Adjust if you switched earlier.</p>
             `,
             showCancelButton: true,
             confirmButtonText: 'Yes',
