@@ -13,9 +13,6 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
         // earliest legal start for the next activity. Default the picker to now.
         const nowVal = msToDatetimeLocal(Date.now());
         const minVal = msToDatetimeLocal(start);
-        // "Now" selection state. While selected, pressing "Yes" submits the
-        // current wall-clock time (captured at the Yes click) instead of the
-        // value in the date picker.
         let useNow = false;
         const result = await Swal.fire({
             icon: 'warning',
@@ -31,10 +28,6 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
             confirmButtonText: 'Yes',
             cancelButtonText: 'Cancel',
             didOpen: () => {
-                // The inline "Now" button (right of the picker, sized so both
-                // share one line on mobile) does NOT submit. Clicking it just
-                // marks "Now" as selected; focusing the picker clears it, both
-                // in state and visually.
                 const nowBtn = document.getElementById('switch-now-btn');
                 const dtInput = document.getElementById('switch-start-input');
                 const setNow = (on) => {
@@ -47,10 +40,6 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
                 dtInput.addEventListener('focus', () => setNow(false));
             },
             preConfirm: () => {
-                // "Now" selected: submit the current time as of this Yes click,
-                // in nanoseconds. Date.now() is in ms, so scale by 1e6 with
-                // BigInt to keep full precision (ms * 1e6 overflows a safe
-                // Number).
                 if (useNow) {
                     return BigInt(Date.now()) * 1000000n;
                 }
@@ -77,7 +66,6 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
             }
         });
         if (!result.isConfirmed) return;
-        // Either the "Now" nanosecond BigInt or the picker value in ms.
         const startTimestamp = result.value;
 
         try {
@@ -90,8 +78,6 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
             // force: true lets add_entry accept a backdated start (it otherwise
             // rejects timestamps older than ~5s). The picker already guards
             // start < ts <= now, and the backend still enforces ordering.
-            // Build the body by hand: start_timestamp may be a BigInt (the "Now"
-            // nanosecond value), which JSON.stringify cannot serialize.
             const body = `{"new_state":${newState},"start_timestamp":${startTimestamp},"force":true}`;
             const response = await fetch(`/api/entry?key=${window.ENTRY_KEY}`, {
                 method: 'POST',
