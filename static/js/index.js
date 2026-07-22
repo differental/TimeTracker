@@ -6,6 +6,18 @@ function updateElapsed() {
     document.getElementById('elapsed').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
+// The "Now" button reports the current timestamp in nanoseconds. Replicating
+// the legacy "now" logic (HEAD~4), the wall clock is read with Date.now(),
+// which is in milliseconds; scale to nanoseconds with BigInt to avoid the
+// precision loss of ms * 1e6 exceeding Number.MAX_SAFE_INTEGER.
+const nowBtn = document.getElementById('now-btn');
+if (nowBtn) {
+    nowBtn.addEventListener('click', () => {
+        const nanos = BigInt(Date.now()) * 1000000n;
+        document.getElementById('now-nanos').textContent = `${nanos} ns`;
+    });
+}
+
 document.querySelectorAll('.change-state-btn').forEach(btn => {
     btn.addEventListener('click', async (ev) => {
         const newState = parseInt(ev.currentTarget.value, 10);
