@@ -37,16 +37,6 @@
                 {% endfor %}
             </div>
         </div>
-        <div class="mb-8">
-            <div class="bg-white shadow rounded-md p-6 flex flex-col items-center gap-4">
-                <button type="button" id="now-btn"
-                    class="py-4 px-8 text-xl md:py-3 md:text-lg rounded-md border border-{{base_color}}-600 hover:bg-{{base_color}}-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-{{base_color}}-300"
-                    aria-label="Show the current timestamp in nanoseconds">
-                    Now
-                </button>
-                <p id="now-nanos" class="font-mono text-lg break-all text-center" aria-live="polite"></p>
-            </div>
-        </div>
     </main>
     {% include "footer.html" %}
     <script>

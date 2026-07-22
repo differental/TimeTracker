@@ -6,18 +6,6 @@ function updateElapsed() {
     document.getElementById('elapsed').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
-// The "Now" button reports the current timestamp in nanoseconds. Replicating
-// the legacy "now" logic (HEAD~4), the wall clock is read with Date.now(),
-// which is in milliseconds; scale to nanoseconds with BigInt to avoid the
-// precision loss of ms * 1e6 exceeding Number.MAX_SAFE_INTEGER.
-const nowBtn = document.getElementById('now-btn');
-if (nowBtn) {
-    nowBtn.addEventListener('click', () => {
-        const nanos = BigInt(Date.now()) * 1000000n;
-        document.getElementById('now-nanos').textContent = `${nanos} ns`;
-    });
-}
-
 document.querySelectorAll('.change-state-btn').forEach(btn => {
     btn.addEventListener('click', async (ev) => {
         const newState = parseInt(ev.currentTarget.value, 10);
@@ -33,7 +21,9 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
                 <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
             `,
             showCancelButton: true,
+            showDenyButton: true,
             confirmButtonText: 'Yes',
+            denyButtonText: 'Now',
             cancelButtonText: 'Cancel',
             preConfirm: () => {
                 const el = document.getElementById('switch-start-input');
@@ -58,8 +48,18 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
                 return ms;
             }
         });
-        if (!result.isConfirmed) return;
-        const startTimestamp = result.value;
+        // The "Now" (deny) button replicates the legacy logic: skip the picker
+        // and send the current wall-clock time straight to the backend. It is
+        // reported in nanoseconds - Date.now() is in ms, so scale by 1e6 with
+        // BigInt to keep full precision (ms * 1e6 overflows a safe Number).
+        let startTimestamp;
+        if (result.isConfirmed) {
+            startTimestamp = result.value;
+        } else if (result.isDenied) {
+            startTimestamp = BigInt(Date.now()) * 1000000n;
+        } else {
+            return;
+        }
 
         try {
             Swal.fire({
@@ -71,11 +71,13 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
             // force: true lets add_entry accept a backdated start (it otherwise
             // rejects timestamps older than ~5s). The picker already guards
             // start < ts <= now, and the backend still enforces ordering.
-            const payload = { new_state: newState, start_timestamp: startTimestamp, force: true };
+            // Build the body by hand: start_timestamp may be a BigInt (the "Now"
+            // nanosecond value), which JSON.stringify cannot serialize.
+            const body = `{"new_state":${newState},"start_timestamp":${startTimestamp},"force":true}`;
             const response = await fetch(`/api/entry?key=${window.ENTRY_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body
             });
             Swal.close();
 
