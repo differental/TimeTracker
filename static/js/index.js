@@ -13,36 +13,17 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
         // earliest legal start for the next activity. Default the picker to now.
         const nowVal = msToDatetimeLocal(Date.now());
         const minVal = msToDatetimeLocal(start);
-        let useNow = false;
         const result = await Swal.fire({
             icon: 'warning',
             title: 'Confirmation',
             html: `
                 <p style="margin-bottom:0.75rem;">Change state to <strong>${STATES_NAMES[newState]}</strong>?</p>
-                <div style="display:flex; gap:0.5rem; align-items:stretch;">
-                    <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0; flex:1 1 auto; min-width:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
-                    <button type="button" id="switch-now-btn" class="swal2-styled" aria-pressed="false" style="margin:0; flex:0 0 auto; padding:0 0.75rem; font-size:0.9rem; background-color:#6e7881; color:#fff;">Now</button>
-                </div>
+                <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
             `,
             showCancelButton: true,
             confirmButtonText: 'Yes',
             cancelButtonText: 'Cancel',
-            didOpen: () => {
-                const nowBtn = document.getElementById('switch-now-btn');
-                const dtInput = document.getElementById('switch-start-input');
-                const setNow = (on) => {
-                    useNow = on;
-                    nowBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-                    nowBtn.style.boxShadow = on ? '0 0 0 3px rgba(110, 120, 129, 0.55)' : '';
-                    nowBtn.style.filter = on ? 'brightness(1.15)' : '';
-                };
-                nowBtn.addEventListener('click', () => setNow(true));
-                dtInput.addEventListener('focus', () => setNow(false));
-            },
             preConfirm: () => {
-                if (useNow) {
-                    return BigInt(Date.now()) * 1000000n;
-                }
                 const el = document.getElementById('switch-start-input');
                 const val = el && el.value;
                 if (!val) {
@@ -78,11 +59,11 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
             // force: true lets add_entry accept a backdated start (it otherwise
             // rejects timestamps older than ~5s). The picker already guards
             // start < ts <= now, and the backend still enforces ordering.
-            const body = `{"new_state":${newState},"start_timestamp":${startTimestamp},"force":true}`;
+            const payload = { new_state: newState, start_timestamp: startTimestamp, force: true };
             const response = await fetch(`/api/entry?key=${window.ENTRY_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body
+                body: JSON.stringify(payload)
             });
             Swal.close();
 
