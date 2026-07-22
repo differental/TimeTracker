@@ -13,19 +13,35 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
         // earliest legal start for the next activity. Default the picker to now.
         const nowVal = msToDatetimeLocal(Date.now());
         const minVal = msToDatetimeLocal(start);
+        // The inline "Now" button (right of the date picker) replicates the
+        // legacy logic: skip the picker and use the current wall-clock time,
+        // reported in nanoseconds. Date.now() is in ms, so scale by 1e6 with
+        // BigInt to keep full precision (ms * 1e6 overflows a safe Number).
+        let useNow = false;
         const result = await Swal.fire({
             icon: 'warning',
             title: 'Confirmation',
             html: `
                 <p style="margin-bottom:0.75rem;">Change state to <strong>${STATES_NAMES[newState]}</strong>?</p>
-                <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
+                <div style="display:flex; gap:0.5rem; align-items:stretch;">
+                    <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0; flex:1 1 auto; min-width:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
+                    <button type="button" id="switch-now-btn" class="swal2-styled" style="margin:0; flex:0 0 auto; padding:0 0.75rem; font-size:0.9rem;">Now</button>
+                </div>
             `,
             showCancelButton: true,
-            showDenyButton: true,
             confirmButtonText: 'Yes',
-            denyButtonText: 'Now',
             cancelButtonText: 'Cancel',
+            didOpen: () => {
+                const nowBtn = document.getElementById('switch-now-btn');
+                nowBtn.addEventListener('click', () => {
+                    useNow = true;
+                    Swal.clickConfirm();
+                });
+            },
             preConfirm: () => {
+                if (useNow) {
+                    return BigInt(Date.now()) * 1000000n;
+                }
                 const el = document.getElementById('switch-start-input');
                 const val = el && el.value;
                 if (!val) {
@@ -48,18 +64,9 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
                 return ms;
             }
         });
-        // The "Now" (deny) button replicates the legacy logic: skip the picker
-        // and send the current wall-clock time straight to the backend. It is
-        // reported in nanoseconds - Date.now() is in ms, so scale by 1e6 with
-        // BigInt to keep full precision (ms * 1e6 overflows a safe Number).
-        let startTimestamp;
-        if (result.isConfirmed) {
-            startTimestamp = result.value;
-        } else if (result.isDenied) {
-            startTimestamp = BigInt(Date.now()) * 1000000n;
-        } else {
-            return;
-        }
+        if (!result.isConfirmed) return;
+        // Either the picker value (ms) or the "Now" nanosecond BigInt.
+        const startTimestamp = result.value;
 
         try {
             Swal.fire({
