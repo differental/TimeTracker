@@ -26,7 +26,7 @@ use crate::{
         ACCESS_KEY, ALL_STATES_DETAILS, AppState, EMERGENCY_STATE_INDEX, IDLE_STATE, STATE_COUNT,
         StateDetail,
     },
-    utils::{get_curr_state, get_length, read_from_value},
+    utils::{get_curr_state, get_length, log_corrupt_entry, read_from_value},
 };
 
 #[derive(Template)]
@@ -77,11 +77,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
         // and fall back to the idle view so the page still loads. The offending
         // entry can then be corrected from the Recents page via Edit.
         _ => {
-            eprintln!(
-                "display_index: invalid start timestamp {curr_starttime} for entry {}; \
-                 falling back to idle view",
-                last_id - 1
-            );
+            log_corrupt_entry("display_index", last_id - 1, curr_state, curr_starttime);
             return render_idle_index();
         }
     };

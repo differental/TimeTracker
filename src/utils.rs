@@ -13,10 +13,30 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use chrono::{LocalResult, TimeZone, Utc};
 use num::traits::ToBytes;
 use sled::{IVec, Tree};
 
 use crate::constants::AppState;
+
+/// True when `timestamp` (milliseconds since the Unix epoch) maps to a valid
+/// UTC datetime. Values outside the representable range indicate a corrupted
+/// entry that should be logged and surfaced as an error rather than used in
+/// calculations or rendered directly.
+pub fn is_valid_timestamp(timestamp: i64) -> bool {
+    matches!(Utc.timestamp_millis_opt(timestamp), LocalResult::Single(_))
+}
+
+/// Logs a corrupted entry in a consistent format, spelling out exactly which
+/// record is bad - its index, state and raw start timestamp - so it can be
+/// identified and fixed (e.g. via the Recents page). `context` names the call
+/// site so the source of the read is clear in the logs.
+pub fn log_corrupt_entry(context: &str, id: u64, state: u8, timestamp: i64) {
+    eprintln!(
+        "{context}: corrupted entry at index {id}: state={state}, start_timestamp={timestamp} \
+         (not a representable datetime)"
+    );
+}
 
 pub fn ivec_to_u64(v: IVec) -> u64 {
     let slice = v.as_ref();

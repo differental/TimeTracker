@@ -27,7 +27,9 @@ use sled::IVec;
 
 use crate::{
     constants::{AppState, STATE_COUNT},
-    utils::{get_length, incr_length, read_from_value, to_ivec},
+    utils::{
+        get_length, incr_length, is_valid_timestamp, log_corrupt_entry, read_from_value, to_ivec,
+    },
 };
 
 #[derive(RustEmbed)]
@@ -234,6 +236,10 @@ pub async fn get_entry(Path(entry_idx): Path<u64>, State(state): State<AppState>
 
     let (new_state, start_timestamp) = read_from_value(&state.events, entry_idx);
 
+    if !is_valid_timestamp(start_timestamp) {
+        log_corrupt_entry("get_entry", entry_idx, new_state, start_timestamp);
+    }
+
     (
         StatusCode::OK,
         Json(GetEntryResponse {
@@ -273,6 +279,9 @@ pub async fn fetch_summary_data(
 
     for i in 0..len {
         let (state, timestamp) = read_from_value(&state.events, i);
+        if !is_valid_timestamp(timestamp) {
+            log_corrupt_entry("fetch_summary_data", i, state, timestamp);
+        }
         if timestamp < range_start {
             pre_range_start_state = Some(state);
             continue;
@@ -349,8 +358,14 @@ pub async fn fetch_recent_states(
 
     let output = ((length - count)..=(length - 1))
         .rev()
-        .map(|i| read_from_value(&state.events, i))
-        .take_while(|(_, t)| *t >= range_start)
+        .map(|i| (i, read_from_value(&state.events, i)))
+        .take_while(|(_, (_, t))| *t >= range_start)
+        .map(|(i, (s, t))| {
+            if !is_valid_timestamp(t) {
+                log_corrupt_entry("fetch_recent_states", i, s, t);
+            }
+            (s, t)
+        })
         .collect::<Vec<(u8, i64)>>();
 
     (StatusCode::OK, Json(output)).into_response()
