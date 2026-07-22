@@ -27,7 +27,10 @@ use sled::IVec;
 
 use crate::{
     constants::{AppState, STATE_COUNT},
-    utils::{get_length, incr_length, read_from_value, to_ivec},
+    utils::{
+        get_length, incr_length, is_reasonable_timestamp, is_valid_timestamp, log_corrupt_entry,
+        read_from_value, to_ivec,
+    },
 };
 
 #[derive(RustEmbed)]
@@ -77,6 +80,23 @@ pub async fn add_entry(
     } = payload;
 
     let now = Utc::now().timestamp_millis();
+
+    // Always enforced, even for forced writes. An out-of-range state index would
+    // later panic when rendering, and an unreasonable timestamp corrupts the DB
+    // (this is what force must never be allowed to slip through).
+    if new_state as usize >= STATE_COUNT {
+        return (StatusCode::BAD_REQUEST, "Bad request: Invalid state index").into_response();
+    }
+    if !is_reasonable_timestamp(start_timestamp, now) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Bad request: Unreasonable start timestamp",
+        )
+            .into_response();
+    }
+
+    // Soft check, bypassable with force: a normal add records the present moment
+    // (within a few seconds). Forced writes may deliberately backdate the start.
     if force != Some(true) && (start_timestamp < now - 5000 || start_timestamp > now) {
         return (StatusCode::BAD_REQUEST, "Bad request: Wrong timestamp").into_response();
     }
@@ -93,6 +113,8 @@ pub async fn add_entry(
             )
                 .into_response();
         }
+        // Never bypassed, even with force: entries must stay ordered by start
+        // timestamp, so a new entry cannot begin before the current one.
         if start_timestamp < curr_starttime {
             return (
                 StatusCode::BAD_REQUEST,
@@ -130,6 +152,7 @@ pub async fn add_entry(
 pub struct UpdateEntryRequest {
     new_state: Option<u8>,
     start_timestamp: Option<i64>,
+    force: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -147,6 +170,7 @@ pub async fn update_entry(
     let UpdateEntryRequest {
         new_state,
         start_timestamp,
+        force,
     } = payload;
 
     // perform basic validation
@@ -164,6 +188,23 @@ pub async fn update_entry(
         return (StatusCode::BAD_REQUEST, "Bad request: No changes specified").into_response();
     }
 
+    let now = Utc::now().timestamp_millis();
+
+    // Always enforced, even for forced writes: a supplied state index must be
+    // valid and a supplied timestamp must be reasonable.
+    if new_state.is_some_and(|ns| ns as usize >= STATE_COUNT) {
+        return (StatusCode::BAD_REQUEST, "Bad request: Invalid state index").into_response();
+    }
+    if start_timestamp.is_some_and(|ts| !is_reasonable_timestamp(ts, now)) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Bad request: Unreasonable start timestamp",
+        )
+            .into_response();
+    }
+
+    // Never bypassed, even with force: the edited start must stay ordered
+    // between its neighbouring entries.
     if let Some(curr_start_time) = start_timestamp {
         if entry_idx > 0 {
             let (_, last_start_time) = read_from_value(&state.events, entry_idx - 1);
@@ -189,6 +230,31 @@ pub async fn update_entry(
     }
 
     let (original_new_state, original_start_timestamp) = read_from_value(&state.events, entry_idx);
+
+    // Soft check, bypassable with force: only relevant when the state is being
+    // changed. Reject an edit that would leave two consecutive entries sharing a
+    // state (a redundant, zero-information segment) unless the caller forces it.
+    let bypass = force == Some(true);
+    if let Some(ns) = new_state {
+        if !bypass && entry_idx > 0 && read_from_value(&state.events, entry_idx - 1).0 == ns {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Bad request: New state same as previous entry",
+            )
+                .into_response();
+        }
+        if !bypass
+            && entry_idx < length - 1
+            && read_from_value(&state.events, entry_idx + 1).0 == ns
+        {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Bad request: New state same as next entry",
+            )
+                .into_response();
+        }
+    }
+
     let new_state = new_state.unwrap_or(original_new_state);
     let start_timestamp = start_timestamp.unwrap_or(original_start_timestamp);
 
@@ -234,6 +300,10 @@ pub async fn get_entry(Path(entry_idx): Path<u64>, State(state): State<AppState>
 
     let (new_state, start_timestamp) = read_from_value(&state.events, entry_idx);
 
+    if !is_valid_timestamp(start_timestamp) {
+        log_corrupt_entry("get_entry", entry_idx, new_state, start_timestamp);
+    }
+
     (
         StatusCode::OK,
         Json(GetEntryResponse {
@@ -273,6 +343,9 @@ pub async fn fetch_summary_data(
 
     for i in 0..len {
         let (state, timestamp) = read_from_value(&state.events, i);
+        if !is_valid_timestamp(timestamp) {
+            log_corrupt_entry("fetch_summary_data", i, state, timestamp);
+        }
         if timestamp < range_start {
             pre_range_start_state = Some(state);
             continue;
@@ -349,8 +422,14 @@ pub async fn fetch_recent_states(
 
     let output = ((length - count)..=(length - 1))
         .rev()
-        .map(|i| read_from_value(&state.events, i))
-        .take_while(|(_, t)| *t >= range_start)
+        .map(|i| (i, read_from_value(&state.events, i)))
+        .take_while(|(_, (_, t))| *t >= range_start)
+        .map(|(i, (s, t))| {
+            if !is_valid_timestamp(t) {
+                log_corrupt_entry("fetch_recent_states", i, s, t);
+            }
+            (s, t)
+        })
         .collect::<Vec<(u8, i64)>>();
 
     (StatusCode::OK, Json(output)).into_response()

@@ -13,10 +13,51 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use chrono::{LocalResult, TimeZone, Utc};
 use num::traits::ToBytes;
 use sled::{IVec, Tree};
 
 use crate::constants::AppState;
+
+/// True when `timestamp` (milliseconds since the Unix epoch) maps to a valid
+/// UTC datetime. Values outside the representable range indicate a corrupted
+/// entry that should be logged and surfaced as an error rather than used in
+/// calculations or rendered directly.
+pub fn is_valid_timestamp(timestamp: i64) -> bool {
+    matches!(Utc.timestamp_millis_opt(timestamp), LocalResult::Single(_))
+}
+
+/// Earliest timestamp (ms since the Unix epoch) accepted for an entry. Anything
+/// before the epoch is clearly bogus for a time tracker, so it's rejected.
+pub const MIN_REASONABLE_TIMESTAMP_MS: i64 = 0; // 1970-01-01T00:00:00Z
+
+/// How far into the future (ms) a timestamp may be while still being accepted,
+/// absorbing minor client/server clock skew. Recorded events happen in the
+/// past, so anything meaningfully beyond "now" is treated as unreasonable.
+pub const FUTURE_TOLERANCE_MS: i64 = 5000;
+
+/// True when `timestamp` (ms since the Unix epoch) is a plausible instant for a
+/// recorded event: a representable datetime within
+/// `[MIN_REASONABLE_TIMESTAMP_MS, now + FUTURE_TOLERANCE_MS]`. This is enforced
+/// on every write - even forced ones - so corrupted or absurd values (e.g.
+/// nanoseconds mistakenly stored as milliseconds, which land far in the future
+/// or outside the representable range) can never enter the database.
+pub fn is_reasonable_timestamp(timestamp: i64, now: i64) -> bool {
+    is_valid_timestamp(timestamp)
+        && (MIN_REASONABLE_TIMESTAMP_MS..=now.saturating_add(FUTURE_TOLERANCE_MS))
+            .contains(&timestamp)
+}
+
+/// Logs a corrupted entry in a consistent format, spelling out exactly which
+/// record is bad - its index, state and raw start timestamp - so it can be
+/// identified and fixed (e.g. via the Recents page). `context` names the call
+/// site so the source of the read is clear in the logs.
+pub fn log_corrupt_entry(context: &str, id: u64, state: u8, timestamp: i64) {
+    eprintln!(
+        "{context}: corrupted entry at index {id}: state={state}, start_timestamp={timestamp} \
+         (not a representable datetime)"
+    );
+}
 
 pub fn ivec_to_u64(v: IVec) -> u64 {
     let slice = v.as_ref();

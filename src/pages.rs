@@ -19,14 +19,14 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
-use chrono::{TimeZone, Utc};
+use chrono::{LocalResult, TimeZone, Utc};
 
 use crate::{
     constants::{
         ACCESS_KEY, ALL_STATES_DETAILS, AppState, EMERGENCY_STATE_INDEX, IDLE_STATE, STATE_COUNT,
         StateDetail,
     },
-    utils::{get_curr_state, get_length, read_from_value},
+    utils::{get_curr_state, get_length, log_corrupt_entry, read_from_value},
 };
 
 #[derive(Template)]
@@ -41,28 +41,46 @@ struct IndexPageTemplate<'a> {
     version: &'a str,
 }
 
+// Renders the index page in its "no current entry" fallback state: idle,
+// with a zero elapsed timer and no emergency banner. Used both when there
+// are genuinely no entries yet (last_id == 0) and when the current entry's
+// stored timestamp is invalid and can't be displayed.
+fn render_idle_index() -> Response {
+    let page = IndexPageTemplate {
+        key: &ACCESS_KEY,
+        current_page: "index",
+        states: ALL_STATES_DETAILS,
+        current_state: IDLE_STATE,
+        elapsed_ms: 0,
+        is_emergency: false,
+        version: env!("CARGO_PKG_VERSION"),
+    };
+
+    let rendered = page.render().unwrap();
+    (StatusCode::OK, Html(rendered)).into_response()
+}
+
 pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     let last_id = get_length(&state.meta);
 
     if last_id == 0 {
-        let page = IndexPageTemplate {
-            key: &ACCESS_KEY,
-            current_page: "index",
-            states: ALL_STATES_DETAILS,
-            current_state: IDLE_STATE,
-            elapsed_ms: 0,
-            is_emergency: false,
-            version: env!("CARGO_PKG_VERSION"),
-        };
-
-        let rendered = page.render().unwrap();
-        return (StatusCode::OK, Html(rendered)).into_response();
+        return render_idle_index();
     }
 
     let (curr_state, curr_starttime) = read_from_value(&state.events, last_id - 1);
 
     let now = Utc::now();
-    let starttime = Utc.timestamp_millis_opt(curr_starttime).unwrap();
+    let starttime = match Utc.timestamp_millis_opt(curr_starttime) {
+        LocalResult::Single(t) => t,
+        // The stored timestamp is out of the representable range (e.g. corrupted
+        // or bad data). Rather than panic and take down the worker thread, log it
+        // and fall back to the idle view so the page still loads. The offending
+        // entry can then be corrected from the Recents page via Edit.
+        _ => {
+            log_corrupt_entry("display_index", last_id - 1, curr_state, curr_starttime);
+            return render_idle_index();
+        }
+    };
     let duration = now - starttime;
 
     let page = IndexPageTemplate {
