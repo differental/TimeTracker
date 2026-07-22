@@ -12,9 +12,6 @@ function msToReadable(ms) {
     return parts.join(' ');
 }
 
-// True when `ms` maps to a valid JS Date. Timestamps outside the representable
-// range (roughly +/-8.64e15 ms) produce an "Invalid Date" and are treated as
-// corrupted entries that should be surfaced as errors rather than rendered.
 function isValidMs(ms) {
     const n = Number(ms);
     return Number.isFinite(n) && !Number.isNaN(new Date(n).getTime());
@@ -41,8 +38,6 @@ const pad = n => n.toString().padStart(2,'0');
 // display granularity. Read back with `new Date(value).getTime()` (local).
 function msToDatetimeLocal(ms) {
     let d = new Date(Number(ms));
-    // Fall back to the current time when the stored value is invalid, so editing
-    // a corrupted entry starts from a sensible, valid default.
     if (Number.isNaN(d.getTime())) d = new Date();
     d.setSeconds(0, 0);
     const y = d.getFullYear();

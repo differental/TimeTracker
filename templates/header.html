@@ -17,4 +17,28 @@
     .edit-btn { opacity: 0; transition: opacity .15s ease; }
     tr:hover .edit-btn, .edit-btn:focus-visible { opacity: 1; }
     @media (hover: none) { .edit-btn { opacity: 1; } }
+    .now-toggle {
+        box-sizing: border-box;
+        padding: 0 0.75em;
+        border: var(--swal2-input-border);
+        border-radius: var(--swal2-input-border-radius);
+        background: var(--swal2-input-background);
+        box-shadow: var(--swal2-input-box-shadow);
+        color: inherit;
+        font-size: 1.125em;
+        font-weight: 500;
+        line-height: 1;
+        cursor: pointer;
+        transition: var(--swal2-input-transition), background-color .2s, color .2s;
+    }
+    .now-toggle[aria-pressed="true"] {
+        border-color: #7066e0;
+        background: rgba(112, 102, 224, 0.12);
+        color: #7066e0;
+    }
+    .now-toggle:focus-visible {
+        outline: none;
+        border-color: #7066e0;
+        box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.06), 0 0 0 3px rgba(112, 102, 224, 0.4);
+    }
 </style>

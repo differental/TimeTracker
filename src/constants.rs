@@ -24,9 +24,9 @@ pub struct AppState {
     pub meta: Tree,
 }
 
-pub static STATE_COUNT: usize = 15;
+pub const STATE_COUNT: usize = 15;
 
-pub static EMERGENCY_STATE_INDEX: usize = 14;
+pub const EMERGENCY_STATE_INDEX: usize = 14;
 
 #[derive(Clone, Copy)]
 pub struct StateDetail<'a> {
@@ -36,7 +36,7 @@ pub struct StateDetail<'a> {
     pub colour: &'a str,
 }
 
-pub static ALL_STATES_DETAILS: [StateDetail; STATE_COUNT] = [
+pub const ALL_STATES_DETAILS: [StateDetail; STATE_COUNT] = [
     StateDetail {
         emoji: "📚",
         name: "Study",
@@ -129,7 +129,7 @@ pub static ALL_STATES_DETAILS: [StateDetail; STATE_COUNT] = [
     },
 ];
 
-pub static IDLE_STATE: StateDetail = StateDetail {
+pub const IDLE_STATE: StateDetail = StateDetail {
     emoji: "⏱️",
     name: "IDLE — Not recorded",
     description: "",

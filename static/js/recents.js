@@ -28,8 +28,6 @@ function buildRow(stateIdx, startMs, endMs, entryIdx) {
 
     const durTd = document.createElement('td');
     durTd.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-700';
-    // A duration is only meaningful when both endpoints are valid timestamps.
-    // Otherwise show 'Error' so the corrupted entry is obvious and can be fixed.
     if (isValidMs(startMs) && isValidMs(endMs)) {
         const durationMs = Number(endMs) - Number(startMs);
         durTd.textContent = msToReadable(durationMs);

@@ -41,10 +41,6 @@ struct IndexPageTemplate<'a> {
     version: &'a str,
 }
 
-// Renders the index page in its "no current entry" fallback state: idle,
-// with a zero elapsed timer and no emergency banner. Used both when there
-// are genuinely no entries yet (last_id == 0) and when the current entry's
-// stored timestamp is invalid and can't be displayed.
 fn render_idle_index() -> Response {
     let page = IndexPageTemplate {
         key: &ACCESS_KEY,
@@ -72,10 +68,6 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     let now = Utc::now();
     let starttime = match Utc.timestamp_millis_opt(curr_starttime) {
         LocalResult::Single(t) => t,
-        // The stored timestamp is out of the representable range (e.g. corrupted
-        // or bad data). Rather than panic and take down the worker thread, log it
-        // and fall back to the idle view so the page still loads. The offending
-        // entry can then be corrected from the Recents page via Edit.
         _ => {
             log_corrupt_entry("display_index", last_id - 1, curr_state, curr_starttime);
             return render_idle_index();
