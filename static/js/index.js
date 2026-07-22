@@ -13,17 +13,44 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
         // earliest legal start for the next activity. Default the picker to now.
         const nowVal = msToDatetimeLocal(Date.now());
         const minVal = msToDatetimeLocal(start);
+        // When `useNow` is set, "Yes" logs at the instant it is clicked rather
+        // than at the value in the picker. It is toggled on by the NOW button
+        // and toggled back off as soon as the picker regains focus.
+        let useNow = false;
         const result = await Swal.fire({
             icon: 'warning',
             title: 'Confirmation',
             html: `
                 <p style="margin-bottom:0.75rem;">Change state to <strong>${STATES_NAMES[newState]}</strong>?</p>
-                <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.5rem;">
+                    <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
+                    <button type="button" id="switch-now-btn" class="swal2-styled" style="margin:0; padding:0.4em 0.9em; font-size:0.9em; background:transparent; color:#7066e0; box-shadow:inset 0 0 0 2px #7066e0;">NOW</button>
+                </div>
             `,
             showCancelButton: true,
             confirmButtonText: 'Yes',
             cancelButtonText: 'Cancel',
+            didOpen: () => {
+                const input = document.getElementById('switch-start-input');
+                const nowBtn = document.getElementById('switch-now-btn');
+                const setFilled = (filled) => {
+                    useNow = filled;
+                    if (filled) {
+                        nowBtn.style.background = '#7066e0';
+                        nowBtn.style.color = '#fff';
+                    } else {
+                        nowBtn.style.background = 'transparent';
+                        nowBtn.style.color = '#7066e0';
+                    }
+                };
+                nowBtn.addEventListener('click', () => setFilled(true));
+                input.addEventListener('focus', () => setFilled(false));
+            },
             preConfirm: () => {
+                if (useNow) {
+                    // Log at the moment "Yes" is clicked.
+                    return Date.now();
+                }
                 const el = document.getElementById('switch-start-input');
                 const val = el && el.value;
                 if (!val) {
