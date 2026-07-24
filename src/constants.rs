@@ -22,6 +22,7 @@ pub static ACCESS_KEY: LazyLock<String> = LazyLock::new(|| env::var("ACCESS_KEY"
 pub struct AppState {
     pub events: Tree,
     pub meta: Tree,
+    pub push_registrations: Tree,
 }
 
 pub const STATE_COUNT: usize = 15;

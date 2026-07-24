@@ -35,6 +35,9 @@ use handlers::{
 mod pages;
 use pages::{display_explanations, display_index, display_recents, display_summary};
 
+mod push;
+use push::{register_live_activity_push, register_widget_push};
+
 mod utils;
 
 #[tokio::main]
@@ -45,8 +48,13 @@ async fn main() -> anyhow::Result<()> {
     let db = sled::open(env::var("DB_PATH").unwrap())?;
     let events = db.open_tree("events")?;
     let meta = db.open_tree("meta")?;
+    let push_registrations = db.open_tree("push_registrations")?;
 
-    let app_state = AppState { events, meta };
+    let app_state = AppState {
+        events,
+        meta,
+        push_registrations,
+    };
 
     let protected_app = Router::new()
         .route("/", get(display_index))
@@ -60,6 +68,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/length", get(fetch_length))
         .route("/api/length", post(force_set_length))
         .route("/api/recents", get(fetch_recent_states))
+        .route("/api/push/widgets", post(register_widget_push))
+        .route(
+            "/api/push/live-activities",
+            post(register_live_activity_push),
+        )
         .layer(middleware::from_fn(auth_user));
 
     let public_app = Router::new().route("/static/{*file}", get(serve_embedded_assets));
