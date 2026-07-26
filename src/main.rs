@@ -14,7 +14,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use axum::{
-    Router, middleware,
+    Router,
+    extract::DefaultBodyLimit,
+    middleware,
     routing::{get, post, put},
 };
 use std::{env, net::SocketAddr};
@@ -28,8 +30,9 @@ use constants::AppState;
 
 mod handlers;
 use handlers::{
-    add_entry, fetch_length, fetch_recent_states, fetch_summary_data, force_set_length, get_entry,
-    serve_embedded_assets, suggest_next_states, update_entry,
+    add_entry, export_data, fetch_length, fetch_recent_states, fetch_summary_data,
+    force_set_length, get_entry, import_data, serve_embedded_assets, suggest_next_states,
+    update_entry,
 };
 
 mod predictor;
@@ -63,6 +66,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/length", post(force_set_length))
         .route("/api/recents", get(fetch_recent_states))
         .route("/api/suggest", get(suggest_next_states))
+        .route("/api/export", get(export_data))
+        .route(
+            "/api/import",
+            post(import_data).layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
+        )
         .layer(middleware::from_fn(auth_user));
 
     let public_app = Router::new().route("/static/{*file}", get(serve_embedded_assets));

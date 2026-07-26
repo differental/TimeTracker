@@ -1,33 +1,94 @@
 // Remember the last-applied filter so we can reload the table after an edit.
 let lastCount = 0;
 let lastDays = 1;
+let editingIdx = null;
+
+function recentsError(message) {
+    const el = document.getElementById('recents-error');
+    if (!el) return;
+    if (!message) {
+        el.textContent = '';
+        el.classList.add('hidden');
+        return;
+    }
+    el.textContent = message;
+    el.classList.remove('hidden');
+}
+
+function stateColour(stateIdx) {
+    const i = Number(stateIdx);
+    return (i >= 0 && i < STATES_DATA.length) ? STATES_DATA[i][1] : '#ccc';
+}
+
+function stateLabel(stateIdx) {
+    const i = Number(stateIdx);
+    return (i >= 0 && i < STATES_DATA.length) ? STATES_DATA[i][0] : `State ${stateIdx}`;
+}
+
+function renderRibbon(data) {
+    const ribbon = document.getElementById('ribbon');
+    const fromEl = document.getElementById('ribbon-from');
+    const toEl = document.getElementById('ribbon-to');
+    if (!ribbon) return;
+    ribbon.innerHTML = '';
+
+    const oldest = (Array.isArray(data) && data.length) ? Number(data[data.length - 1][1]) : null;
+    const to = Date.now();
+    const segs = (oldest !== null && isValidMs(oldest)) ? buildSegments(data, oldest, to) : [];
+
+    if (segs.length === 0) {
+        ribbon.className = 'ribbon-empty';
+        ribbon.textContent = 'No entries in this range.';
+        if (fromEl) fromEl.textContent = '';
+        if (toEl) toEl.textContent = '';
+        return;
+    }
+
+    ribbon.className = 'ribbon';
+    const span = Math.max(1, to - segs[0].start);
+
+    segs.forEach((seg, i) => {
+        const el = document.createElement('div');
+        el.className = 'ribbon-seg';
+        el.style.background = stateColour(seg.state);
+        el.style.width = `${((seg.end - seg.start) / span) * 100}%`;
+        el.style.setProperty('--delay', `${Math.min(i * 18, 420)}ms`);
+        el.title = `${stateLabel(seg.state)} · ${formatRounded(seg.start)} · ${msToReadable(seg.end - seg.start)}`;
+        ribbon.appendChild(el);
+    });
+
+    if (fromEl) fromEl.textContent = formatRounded(segs[0].start);
+    if (toEl) toEl.textContent = 'now';
+}
 
 function buildRow(stateIdx, startMs, endMs, entryIdx) {
     const tr = document.createElement('tr');
+
     const stateTd = document.createElement('td');
-    stateTd.className = 'px-6 py-4 whitespace-nowrap text-sm';
-    const stateName = STATES_DATA[Number(stateIdx)][0];
-    const stateDiv = document.createElement('div');
-    stateDiv.className = 'flex items-center gap-3';
+    stateTd.className = 'cell-activity';
+    const stateDiv = document.createElement('span');
+    stateDiv.className = 'cell-state';
     const dot = document.createElement('span');
-    dot.className = 'inline-block w-3 h-3 rounded-full';
-    dot.style.background = (Number(stateIdx) >= 0 && Number(stateIdx) < STATES_DATA.length) ? STATES_DATA[Number(stateIdx)][1] : '#ccc';
+    dot.className = 'cell-dot';
+    dot.style.background = stateColour(stateIdx);
     stateDiv.appendChild(dot);
     const label = document.createElement('span');
-    label.textContent = stateName;
+    label.textContent = stateLabel(stateIdx);
     stateDiv.appendChild(label);
     stateTd.appendChild(stateDiv);
 
     const startTd = document.createElement('td');
-    startTd.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-700';
+    startTd.className = 'cell-time cell-start';
     startTd.textContent = formatRounded(startMs);
+    startTd.dataset.hm = clockHM(startMs);
 
     const endTd = document.createElement('td');
-    endTd.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-700';
+    endTd.className = 'cell-time cell-end';
     endTd.textContent = formatRounded(endMs);
+    endTd.dataset.hm = clockHM(endMs);
 
     const durTd = document.createElement('td');
-    durTd.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-700';
+    durTd.className = 'cell-dur';
     if (isValidMs(startMs) && isValidMs(endMs)) {
         const durationMs = Number(endMs) - Number(startMs);
         durTd.textContent = msToReadable(durationMs);
@@ -36,71 +97,91 @@ function buildRow(stateIdx, startMs, endMs, entryIdx) {
     }
 
     const editTd = document.createElement('td');
-    editTd.className = 'px-6 py-4 whitespace-nowrap text-right text-sm';
+    editTd.className = 'cell-edit';
     // entryIdx is null when we couldn't determine the global index (e.g. the
     // length lookup failed) - omit the button rather than risk editing the wrong row.
     if (Number.isInteger(entryIdx) && entryIdx >= 0) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = `edit-btn text-${window.BASE_COLOR || 'blue'}-600 hover:underline font-medium`;
+        btn.className = 'row-edit';
         btn.textContent = 'Edit';
-        btn.setAttribute('aria-label', 'Edit start time');
-        btn.addEventListener('click', () => openEditDialog(entryIdx, startMs));
+        btn.setAttribute('aria-label', `Edit start time for ${stateLabel(stateIdx)}`);
+        btn.addEventListener('click', () => openEditDialog(entryIdx, startMs, stateLabel(stateIdx)));
         editTd.appendChild(btn);
     }
 
-    tr.appendChild(stateTd);
-    tr.appendChild(startTd);
-    tr.appendChild(endTd);
-    tr.appendChild(durTd);
-    tr.appendChild(editTd);
+    tr.append(stateTd, startTd, endTd, durTd, editTd);
     return tr;
 }
 
-// Opens a SweetAlert dialog to edit a single entry's start time and PUTs the
-// change. The backend (PUT /api/entry/{idx}) validates that the new start stays
-// between the neighbouring entries and returns the error text on violation.
-async function openEditDialog(entryIdx, startMs) {
-    const initial = msToDatetimeLocal(startMs);
-    const result = await Swal.fire({
-        title: 'Edit start time',
-        html: `<input id="edit-start-input" type="datetime-local" class="swal2-input" value="${initial}" step="60">`,
-        showCancelButton: true,
-        confirmButtonText: 'Save',
-        cancelButtonText: 'Cancel',
-        preConfirm: async () => {
-            const el = document.getElementById('edit-start-input');
-            const val = el && el.value;
-            if (!val) {
-                Swal.showValidationMessage('Please choose a date and time.');
-                return false;
-            }
-            const ms = new Date(val).getTime();
-            if (Number.isNaN(ms)) {
-                Swal.showValidationMessage('Invalid date/time.');
-                return false;
-            }
-            try {
-                const resp = await fetch(`/api/entry/${entryIdx}?key=${encodeURIComponent(window.ENTRY_KEY)}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ start_timestamp: ms })
-                });
-                if (!resp.ok) {
-                    Swal.showValidationMessage(await resp.text());
-                    return false;
-                }
-                return await resp.json();
-            } catch (err) {
-                Swal.showValidationMessage((err && err.message) ? err.message : String(err));
-                return false;
-            }
-        }
-    });
+function showEditError(message) {
+    const el = document.getElementById('edit-error');
+    el.textContent = message;
+    el.classList.remove('hidden');
+}
 
-    if (result.isConfirmed) {
-        await Swal.fire({ icon: 'success', title: 'Updated', timer: 1200, showConfirmButton: false });
+function clearEditError() {
+    const el = document.getElementById('edit-error');
+    el.textContent = '';
+    el.classList.add('hidden');
+}
+
+// Opens the edit dialog for a single entry's start time and PUTs the change.
+// The backend (PUT /api/entry/{idx}) validates that the new start stays between
+// the neighbouring entries and returns the error text on violation.
+function openEditDialog(entryIdx, startMs, name) {
+    const sheet = document.getElementById('edit-sheet');
+    const input = document.getElementById('edit-start-input');
+    const target = document.getElementById('edit-target');
+    editingIdx = entryIdx;
+    input.value = msToDatetimeLocal(startMs);
+    target.textContent = name;
+    clearEditError();
+    setEditBusy(false, 'Save');
+    sheet.showModal();
+    input.focus();
+}
+
+function setEditBusy(busy, label) {
+    document.getElementById('edit-save').disabled = busy;
+    document.getElementById('edit-cancel').disabled = busy;
+    document.getElementById('edit-start-input').disabled = busy;
+    document.getElementById('edit-save').textContent = label;
+}
+
+async function saveEdit() {
+    const input = document.getElementById('edit-start-input');
+    const val = input && input.value;
+    clearEditError();
+
+    if (!val) {
+        showEditError('Please choose a date and time.');
+        return;
+    }
+    const ms = new Date(val).getTime();
+    if (Number.isNaN(ms)) {
+        showEditError('Invalid date/time.');
+        return;
+    }
+
+    setEditBusy(true, 'Saving…');
+    try {
+        const resp = await fetch(`/api/entry/${editingIdx}?key=${encodeURIComponent(window.ENTRY_KEY)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ start_timestamp: ms })
+        });
+        if (!resp.ok) {
+            setEditBusy(false, 'Save');
+            showEditError(await resp.text());
+            return;
+        }
+        await resp.json();
+        document.getElementById('edit-sheet').close();
         loadEvents(lastCount, lastDays);
+    } catch (err) {
+        setEditBusy(false, 'Save');
+        showEditError((err && err.message) ? err.message : String(err));
     }
 }
 
@@ -109,6 +190,7 @@ async function loadEvents(count = 0, days = 1) {
     lastDays = days;
     const tbody = document.getElementById('events-tbody');
     tbody.innerHTML = '';
+    recentsError('');
     try {
         // Recents entries come back newest-first without their global index, but
         // the feed always starts at the newest entry (len-1) and the days cutoff
@@ -134,15 +216,30 @@ async function loadEvents(count = 0, days = 1) {
 
         const resp = await fetch(`/api/recents?${params.toString()}`);
         if (!resp.ok) {
-            const errText = await resp.text();
-            await Swal.fire({ icon: 'error', title: 'Error', text: errText });
+            recentsError(await resp.text());
+            renderRibbon([]);
             return;
         }
         const data = await resp.json();
         if (!Array.isArray(data)) {
-            await Swal.fire({ icon: 'error', title: 'Error', text: "API returned unexpected data." });
+            recentsError('API returned unexpected data.');
+            renderRibbon([]);
             return;
         }
+
+        renderRibbon(data);
+
+        if (data.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 5;
+            td.className = 'table-empty';
+            td.textContent = 'No entries in this range.';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+
         for (let i = 0; i < data.length; i++) {
             const entry = data[i];
             if (!Array.isArray(entry) || entry.length < 2) continue;
@@ -154,9 +251,8 @@ async function loadEvents(count = 0, days = 1) {
             tbody.appendChild(row);
         }
     } catch (err) {
-        Swal.close();
-        const msg = (err && err.message) ? err.message : String(err);
-        await Swal.fire({ icon: 'error', title: 'Error', text: msg });
+        recentsError((err && err.message) ? err.message : String(err));
+        renderRibbon([]);
     }
 }
 
@@ -166,6 +262,19 @@ function wireFilters() {
     const daysSelect = document.getElementById('days-select');
     const daysCustom = document.getElementById('days-custom-input');
     const applyBtn = document.getElementById('apply-filters');
+    const editSheet = document.getElementById('edit-sheet');
+
+    document.getElementById('edit-save').addEventListener('click', () => saveEdit());
+    document.getElementById('edit-cancel').addEventListener('click', () => editSheet.close());
+    editSheet.addEventListener('click', (ev) => {
+        if (ev.target === editSheet) editSheet.close();
+    });
+    document.getElementById('edit-start-input').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+            ev.preventDefault();
+            saveEdit();
+        }
+    });
 
     function toggleCustom(selectEl, customInputEl) {
         if (selectEl.value === 'custom') {
@@ -203,11 +312,11 @@ function wireFilters() {
         const r = getCountValue();
         const d = getDaysValue();
         if (!Number.isInteger(r) || r < 0) {
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Please enter a valid positive integer for items.' });
+            recentsError('Please enter a valid positive integer for items.');
             return;
         }
         if (!Number.isInteger(d) || d < 0) {
-            Swal.fire({ icon: 'error', title: 'Error', text: 'Please enter a valid positive integer for days.' });
+            recentsError('Please enter a valid positive integer for days.');
             return;
         }
         loadEvents(r, d);

@@ -1,32 +1,33 @@
-{%- decl base_color -%}
-{%- if is_emergency -%}
-    {%- let base_color = "red" -%}
-{%- else -%}
-    {%- let base_color = "blue" -%}
-{%- endif -%}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="--state: {{ current_state.colour }}"{% if is_emergency %} data-emergency="true"{% endif %}>
 <head>
-    <title>TimeTracker — Activity Explanations</title>
+    <title>TimeTracker — Activities</title>
     {% include "header.html" %}
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+<body>
     {% include "navbar.html" %}
-    <main class="flex-grow container mx-auto max-w-3xl px-4 py-10">
-        <h1 class="text-3xl font-semibold mb-4">Activity Explanations</h1>
-        <div class="bg-white shadow rounded-lg p-6 space-y-4">
-            {% for s in states %}
-            <section>
-                <h2 class="text-lg font-medium flex items-center">{{ s.emoji }} {{ s.name }}</h2>
-                <p class="mt-1 text-gray-700">{{ s.description }}</p>
-            </section>
-            {% endfor %}
-            <hr class="my-4" />
+    <main class="page shell">
+        <div class="page-head">
+            <div>
+                <h1 class="page-title">Activities</h1>
+                <p class="page-sub">Every state you can track, its colour, and what it covers.</p>
+            </div>
         </div>
-        <div class="mt-6 text-right">
-            <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-{{base_color}}-600 text-white rounded shadow hover:opacity-95">Back</a>
+
+        <div class="state-cards">
+            {% for s in states %}
+            <article class="state-card rise" style="--swatch: {{ s.colour }}; --delay: {{ loop.index0 * 25 }}ms">
+                <h2>
+                    <span aria-hidden="true">{{ s.emoji }}</span>
+                    <span>{{ s.name }}</span>
+                    <span class="state-index">{{ loop.index0 }}</span>
+                </h2>
+                <p>{{ s.description }}</p>
+            </article>
+            {% endfor %}
         </div>
     </main>
+
     {% include "footer.html" %}
 </body>
 </html>

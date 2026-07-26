@@ -29,6 +29,14 @@ use crate::{
     utils::{get_curr_state, get_length, log_corrupt_entry, read_from_value},
 };
 
+fn state_detail(curr_state: u8) -> StateDetail<'static> {
+    if (curr_state as usize) < STATE_COUNT {
+        ALL_STATES_DETAILS[curr_state as usize]
+    } else {
+        IDLE_STATE
+    }
+}
+
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexPageTemplate<'a> {
@@ -95,16 +103,20 @@ struct SummaryPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
     states: [StateDetail<'a>; STATE_COUNT],
+    current_state: StateDetail<'a>,
     is_emergency: bool,
     version: &'a str,
 }
 
 pub async fn display_summary(State(state): State<AppState>) -> Response {
+    let curr_state = get_curr_state(&state);
+
     let page = SummaryPageTemplate {
         key: &ACCESS_KEY,
         current_page: "summary",
         states: ALL_STATES_DETAILS,
-        is_emergency: get_curr_state(&state) as usize == EMERGENCY_STATE_INDEX,
+        current_state: state_detail(curr_state),
+        is_emergency: curr_state as usize == EMERGENCY_STATE_INDEX,
         version: env!("CARGO_PKG_VERSION"),
     };
 
@@ -118,16 +130,20 @@ struct ExplanationPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
     states: [StateDetail<'a>; STATE_COUNT],
+    current_state: StateDetail<'a>,
     is_emergency: bool,
     version: &'a str,
 }
 
 pub async fn display_explanations(State(state): State<AppState>) -> Response {
+    let curr_state = get_curr_state(&state);
+
     let page = ExplanationPageTemplate {
         key: &ACCESS_KEY,
         current_page: "explanations",
         states: ALL_STATES_DETAILS,
-        is_emergency: get_curr_state(&state) as usize == EMERGENCY_STATE_INDEX,
+        current_state: state_detail(curr_state),
+        is_emergency: curr_state as usize == EMERGENCY_STATE_INDEX,
         version: env!("CARGO_PKG_VERSION"),
     };
 
@@ -141,16 +157,20 @@ struct RecentsPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
     states: [StateDetail<'a>; STATE_COUNT],
+    current_state: StateDetail<'a>,
     is_emergency: bool,
     version: &'a str,
 }
 
 pub async fn display_recents(State(state): State<AppState>) -> Response {
+    let curr_state = get_curr_state(&state);
+
     let page = RecentsPageTemplate {
         key: &ACCESS_KEY,
         current_page: "recents",
         states: ALL_STATES_DETAILS,
-        is_emergency: get_curr_state(&state) as usize == EMERGENCY_STATE_INDEX,
+        current_state: state_detail(curr_state),
+        is_emergency: curr_state as usize == EMERGENCY_STATE_INDEX,
         version: env!("CARGO_PKG_VERSION"),
     };
 

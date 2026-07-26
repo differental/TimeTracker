@@ -23,14 +23,14 @@ use chrono::{FixedOffset, Utc};
 use mime_guess::from_path;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
-use sled::IVec;
+use sled::{IVec, Transactional, transaction::TransactionResult};
 
 use crate::{
     constants::{ALL_STATES_DETAILS, AppState, STATE_COUNT},
     predictor::{ActivityPredictor, Configuration, TrainingEntry},
     utils::{
-        get_length, incr_length, is_reasonable_timestamp, is_valid_timestamp, log_corrupt_entry,
-        read_from_value, to_ivec,
+        get_length, incr_length, is_reasonable_timestamp, is_valid_timestamp, ivec_to_u64,
+        log_corrupt_entry, read_from_value, to_ivec, try_read_from_value,
     },
 };
 
@@ -582,4 +582,193 @@ pub async fn fetch_recent_states(
         .collect::<Vec<(u8, i64)>>();
 
     (StatusCode::OK, Json(output)).into_response()
+}
+
+pub const EXPORT_FORMAT_VERSION: u32 = 1;
+
+#[derive(Serialize, Deserialize)]
+pub struct ExportEntry {
+    entry_idx: u64,
+    new_state: u8,
+    start_timestamp: i64,
+}
+
+#[derive(Serialize)]
+pub struct ExportResponse {
+    version: u32,
+    exported_at: i64,
+    count: u64,
+    entries: Vec<ExportEntry>,
+}
+
+pub async fn export_data(State(state): State<AppState>) -> Response {
+    let length = get_length(&state.meta);
+
+    let mut entries: Vec<ExportEntry> = Vec::new();
+
+    for i in 0..length {
+        let Some((new_state, start_timestamp)) = try_read_from_value(&state.events, i) else {
+            eprintln!("export_data: skipping unreadable entry at index {i}");
+            continue;
+        };
+
+        if !is_valid_timestamp(start_timestamp) {
+            log_corrupt_entry("export_data", i, new_state, start_timestamp);
+        }
+
+        entries.push(ExportEntry {
+            entry_idx: entries.len() as u64,
+            new_state,
+            start_timestamp,
+        });
+    }
+
+    let response = ExportResponse {
+        version: EXPORT_FORMAT_VERSION,
+        exported_at: Utc::now().timestamp_millis(),
+        count: entries.len() as u64,
+        entries,
+    };
+
+    (StatusCode::OK, Json(response)).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct ImportRequest {
+    version: u32,
+    count: Option<u64>,
+    entries: Vec<ExportEntry>,
+    force: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct ImportResponse {
+    imported: u64,
+    previous_length: u64,
+}
+
+fn validate_import(entries: &[ExportEntry], force: bool, now: i64) -> Result<(), String> {
+    if entries.is_empty() && !force {
+        return Err("Bad request: Refusing to import an empty database without force".to_string());
+    }
+
+    for (i, entry) in entries.iter().enumerate() {
+        if entry.entry_idx != i as u64 {
+            return Err(format!("Bad request: Entry index mismatch at entry {i}"));
+        }
+
+        if entry.new_state as usize >= STATE_COUNT {
+            return Err(format!("Bad request: Invalid state index at entry {i}"));
+        }
+
+        if !is_reasonable_timestamp(entry.start_timestamp, now) {
+            return Err(format!(
+                "Bad request: Unreasonable start timestamp at entry {i}"
+            ));
+        }
+
+        if i > 0 {
+            let previous = &entries[i - 1];
+
+            if entry.start_timestamp < previous.start_timestamp {
+                return Err(format!(
+                    "Bad request: Entries not ordered by start timestamp at entry {i}"
+                ));
+            }
+
+            if !force && entry.new_state == previous.new_state {
+                return Err(format!(
+                    "Bad request: Consecutive entries share a state at entry {i}"
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn import_data(
+    State(state): State<AppState>,
+    Json(payload): Json<ImportRequest>,
+) -> Response {
+    let ImportRequest {
+        version,
+        count,
+        entries,
+        force,
+    } = payload;
+
+    if version != EXPORT_FORMAT_VERSION {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Bad request: Unsupported export format version",
+        )
+            .into_response();
+    }
+
+    if count.is_some_and(|c| c != entries.len() as u64) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Bad request: Count does not match entries length",
+        )
+            .into_response();
+    }
+
+    let now = Utc::now().timestamp_millis();
+
+    if let Err(err) = validate_import(&entries, force == Some(true), now) {
+        return (StatusCode::BAD_REQUEST, err).into_response();
+    }
+
+    let previous_length = get_length(&state.meta);
+    let new_length = entries.len() as u64;
+
+    let existing = state
+        .events
+        .iter()
+        .keys()
+        .filter_map(|key| key.ok())
+        .map(ivec_to_u64)
+        .collect::<Vec<u64>>();
+
+    let result: TransactionResult<(), sled::Error> =
+        (&state.events, &state.meta).transaction(|(tx_events, tx_meta)| {
+            for key in &existing {
+                if *key >= new_length {
+                    tx_events.remove(to_ivec(*key))?;
+                }
+            }
+
+            for (i, entry) in entries.iter().enumerate() {
+                let mut bytes = [0u8; 9];
+                bytes[0] = entry.new_state;
+                bytes[1..].copy_from_slice(&entry.start_timestamp.to_ne_bytes());
+                tx_events.insert(to_ivec(i as u64), IVec::from(&bytes))?;
+            }
+
+            tx_meta.insert(b"len", to_ivec(new_length))?;
+
+            Ok(())
+        });
+
+    if let Err(err) = result {
+        println!("{err:?}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("{err}")).into_response();
+    }
+
+    for tree in [&state.events, &state.meta] {
+        if let Err(err) = tree.flush() {
+            println!("{err:?}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("{err}")).into_response();
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(ImportResponse {
+            imported: new_length,
+            previous_length,
+        }),
+    )
+        .into_response()
 }
