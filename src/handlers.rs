@@ -19,14 +19,15 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use chrono::{FixedOffset, Utc};
 use mime_guess::from_path;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use sled::{IVec, Transactional, transaction::TransactionResult};
 
 use crate::{
-    constants::{AppState, STATE_COUNT},
+    constants::{ALL_STATES_DETAILS, AppState, STATE_COUNT},
+    predictor::{ActivityPredictor, Configuration, TrainingEntry},
     utils::{
         get_length, incr_length, is_reasonable_timestamp, is_valid_timestamp, ivec_to_u64,
         log_corrupt_entry, read_from_value, to_ivec, try_read_from_value,
@@ -392,6 +393,154 @@ pub async fn force_set_length(
     state.meta.insert(b"len", v).unwrap();
 
     (StatusCode::OK, Json(new_length)).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct SuggestRequest {
+    /// How many activities to suggest. Defaults to 3.
+    limit: Option<usize>,
+    /// The client's UTC offset in minutes, east of Greenwich. Weekday and
+    /// hour-of-day context is derived in this timezone, so a client in a
+    /// non-UTC zone must pass it or the time-of-day patterns will be skewed.
+    tz_offset: Option<i32>,
+    /// Moment to predict for, in epoch milliseconds. Defaults to now.
+    at: Option<i64>,
+    /// State to predict away from. Defaults to the latest recorded state, and
+    /// is never itself suggested.
+    current_state: Option<u8>,
+    /// How many of the most recent entries to train on. Defaults to 10000.
+    max_entries: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct Suggestion {
+    state: u8,
+    name: &'static str,
+    emoji: &'static str,
+    colour: &'static str,
+}
+
+#[derive(Serialize)]
+pub struct SuggestResponse {
+    at: i64,
+    current_state: Option<u8>,
+    trained_on: usize,
+    suggestions: Vec<Suggestion>,
+}
+
+const MAX_TZ_OFFSET_MINUTES: i32 = 14 * 60;
+const MAX_TRAINING_ENTRIES: usize = 100_000;
+
+/// Suggests the activities most likely to come next, using the TAGE predictor in
+/// [`crate::predictor`]. Training happens per request over the tail of the log,
+/// which keeps the clients stateless — they no longer need to download the whole
+/// history to predict locally.
+pub async fn suggest_next_states(
+    Query(params): Query<SuggestRequest>,
+    State(state): State<AppState>,
+) -> Response {
+    let SuggestRequest {
+        limit,
+        tz_offset,
+        at,
+        current_state,
+        max_entries,
+    } = params;
+
+    let limit = limit.unwrap_or(3);
+    if limit == 0 || limit > STATE_COUNT {
+        return (StatusCode::BAD_REQUEST, "Bad request: Invalid limit").into_response();
+    }
+
+    let tz_offset = tz_offset.unwrap_or(0);
+    let Some(offset) = (tz_offset.abs() <= MAX_TZ_OFFSET_MINUTES)
+        .then(|| FixedOffset::east_opt(tz_offset * 60))
+        .flatten()
+    else {
+        return (StatusCode::BAD_REQUEST, "Bad request: Invalid tz_offset").into_response();
+    };
+
+    let at = at.unwrap_or_else(|| Utc::now().timestamp_millis());
+    if !is_valid_timestamp(at) {
+        return (StatusCode::BAD_REQUEST, "Bad request: Invalid timestamp").into_response();
+    }
+
+    if current_state.is_some_and(|s| s as usize >= STATE_COUNT) {
+        return (StatusCode::BAD_REQUEST, "Bad request: Invalid state index").into_response();
+    }
+
+    let max_entries = max_entries.unwrap_or(10_000);
+    if max_entries == 0 || max_entries > MAX_TRAINING_ENTRIES {
+        return (StatusCode::BAD_REQUEST, "Bad request: Invalid max_entries").into_response();
+    }
+
+    // Reading the log and training over it is CPU-bound and can span tens of
+    // thousands of entries, so keep it off the async runtime's worker threads.
+    let predicted = tokio::task::spawn_blocking(move || {
+        let length = get_length(&state.meta);
+        let start = length.saturating_sub(max_entries as u64);
+
+        let mut entries = Vec::with_capacity((length - start) as usize);
+        for i in start..length {
+            let (state_id, timestamp) = read_from_value(&state.events, i);
+            // A state index out of range or an unrepresentable timestamp can't be
+            // placed in the training sequence at all, so log and drop it rather
+            // than let one corrupt row skew every prediction.
+            if state_id as usize >= STATE_COUNT || !is_valid_timestamp(timestamp) {
+                log_corrupt_entry("suggest_next_states", i, state_id, timestamp);
+                continue;
+            }
+            entries.push(TrainingEntry {
+                state_id: state_id as usize,
+                start_timestamp: timestamp,
+            });
+        }
+
+        let current_state = current_state.or_else(|| entries.last().map(|e| e.state_id as u8));
+
+        let configuration = Configuration {
+            maximum_training_entries: max_entries,
+            ..Configuration::default()
+        };
+        let trained_on = entries.len();
+        let predictor = ActivityPredictor::new(&entries, offset, configuration);
+        let states = predictor.predictions(at, current_state.map(|s| s as usize), limit);
+
+        (current_state, trained_on, states)
+    })
+    .await;
+
+    let (current_state, trained_on, states) = match predicted {
+        Ok(result) => result,
+        Err(err) => {
+            println!("{err:?}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, format!("{err}")).into_response();
+        }
+    };
+
+    let suggestions = states
+        .into_iter()
+        .map(|state_id| {
+            let detail = ALL_STATES_DETAILS[state_id];
+            Suggestion {
+                state: state_id as u8,
+                name: detail.name,
+                emoji: detail.emoji,
+                colour: detail.colour,
+            }
+        })
+        .collect();
+
+    (
+        StatusCode::OK,
+        Json(SuggestResponse {
+            at,
+            current_state,
+            trained_on,
+            suggestions,
+        }),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize)]
