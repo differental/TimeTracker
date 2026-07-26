@@ -92,6 +92,17 @@ pub fn read_from_value(events: &Tree, id: u64) -> (u8, i64) {
     (state, starttime)
 }
 
+pub fn try_read_from_value(events: &Tree, id: u64) -> Option<(u8, i64)> {
+    let bytes = events.get(id.to_ne_bytes()).ok()??;
+    if bytes.len() < 9 {
+        return None;
+    }
+    let state = u8::from_ne_bytes([bytes[0]]);
+    let mut time_bytes = [0u8; 8];
+    time_bytes.copy_from_slice(&bytes[1..9]);
+    Some((state, i64::from_ne_bytes(time_bytes)))
+}
+
 pub fn get_curr_state(state: &AppState) -> u8 {
     // Returns current state, or if there's no state, u8::MAX
     let length = get_length(&state.meta);
