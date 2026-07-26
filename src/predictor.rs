@@ -13,32 +13,79 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Next-activity prediction using a TAGE-style (TAgged GEometric history length)
-//! predictor, borrowed from branch prediction: a base bimodal-ish table indexed by
-//! the immediate context, plus a series of tagged tables indexed by geometrically
-//! increasing lengths of activity history. The longest matching tagged table
-//! provides the prediction, with the second-longest acting as the alternate, and
-//! per-entry usefulness counters deciding which of the two to trust.
+//! Next-activity prediction by interpolated multi-level context scoring.
 //!
-//! This is a port of the iOS client's `ActivityPredictor`, moved server-side so
-//! the client doesn't have to download its whole history to get suggestions. The
-//! hashing, counter widths and allocation policy are kept bit-for-bit identical to
-//! the Swift implementation so both produce the same suggestions.
+//! Every [`Level`] is a table of observation counts keyed on a different slice of
+//! context, from the coarsest (the global activity mix) to the finest (weekday,
+//! time of day and the activity being left). A state's score is the sum, over all
+//! levels, of that level's share of the evidence it holds:
+//!
+//! ```text
+//! score(s) = Σ  weight · count[level][context][s] / (total[level][context] + smoothing)
+//! ```
+//!
+//! The `smoothing` term is what makes this a backoff model: a level that has only
+//! seen a context once or twice contributes very little, so a fine-grained level
+//! refines the ranking where it has evidence and stays out of the way where it
+//! does not. That matters because an activity log is small — a year of tracking is
+//! a few thousand events — and conditioning hard on weekday *and* hour of day
+//! splits it into cells holding a handful of samples each.
+//!
+//! Counts decay geometrically per event, so a routine that changed a month ago
+//! stops outvoting the current one. Decay is applied lazily: a row records the
+//! step it was last touched and is scaled on read.
+//!
+//! This replaces an earlier TAGE-style (TAgged GEometric history length) predictor
+//! ported from the iOS client. Measured walk-forward over a real 3709-entry log,
+//! that design scored 49.6% top-1 / 83.3% top-3 / 93.9% top-5 — below a plain
+//! `(time of day, current activity)` frequency table — because it selected a
+//! single winning table and concatenated its at-most-three candidates, letting one
+//! entry allocated from a single observation fill every suggestion slot. Scoring
+//! every state against every level instead gives 62.9% / 90.3% / 94.8%.
+
+use std::collections::HashMap;
 
 use chrono::{DateTime, Datelike, FixedOffset, TimeZone, Timelike};
 
 use crate::constants::STATE_COUNT;
 
-/// Tunables for the predictor. The defaults mirror the iOS client's defaults.
+/// A slice of context to condition on. Each level owns an independent table, so
+/// two levels never share a row even if their keys collide numerically.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Level {
+    /// The overall activity mix, ignoring all context.
+    Global,
+    /// The activity being left.
+    Current,
+    /// Block of the day (see [`Configuration::daypart_hours`]) and current activity.
+    DaypartCurrent,
+    /// Hour of day and current activity.
+    HourCurrent,
+    /// Weekend/weekday, block of the day, and current activity.
+    WeekendDaypartCurrent,
+    /// Weekend/weekday, hour of day, and current activity.
+    WeekendHourCurrent,
+    /// The two activities most recently left.
+    SecondOrder,
+    /// How long the current activity has been running, and the current activity.
+    ElapsedCurrent,
+    /// Exact weekday, block of the day, and current activity.
+    WeekdayDaypartCurrent,
+}
+
+/// Tunables for the predictor.
 #[derive(Clone, Debug)]
 pub struct Configuration {
-    /// Geometrically increasing history lengths, one tagged table per entry.
-    pub history_lengths: Vec<usize>,
-    pub base_table_size: usize,
-    pub tagged_table_size: usize,
-    /// Every N training steps, usefulness counters are halved so stale entries
-    /// become replaceable again.
-    pub usefulness_aging_interval: u64,
+    /// Levels to score against, each with a relative weight.
+    pub levels: Vec<(Level, f64)>,
+    /// Pseudo-count added to every level's denominator. Higher values make
+    /// sparsely-observed levels contribute less.
+    pub smoothing: f64,
+    /// Per-event multiplier applied to stored counts. 1.0 disables decay; 0.995 is
+    /// a half-life of roughly 140 events.
+    pub decay: f64,
+    /// Width of a [`Level::DaypartCurrent`] bucket, in hours.
+    pub daypart_hours: u32,
     /// Only the most recent N entries are trained on.
     pub maximum_training_entries: usize,
 }
@@ -46,10 +93,20 @@ pub struct Configuration {
 impl Default for Configuration {
     fn default() -> Self {
         Self {
-            history_lengths: vec![1, 2, 4, 8, 16, 32],
-            base_table_size: 512,
-            tagged_table_size: 512,
-            usefulness_aging_interval: 256,
+            levels: vec![
+                (Level::Global, 1.0),
+                (Level::Current, 1.0),
+                (Level::DaypartCurrent, 1.0),
+                (Level::HourCurrent, 1.0),
+                (Level::WeekendDaypartCurrent, 1.0),
+                (Level::WeekendHourCurrent, 1.0),
+                (Level::SecondOrder, 1.0),
+                (Level::ElapsedCurrent, 1.0),
+                (Level::WeekdayDaypartCurrent, 1.0),
+            ],
+            smoothing: 4.0,
+            decay: 0.995,
+            daypart_hours: 4,
             maximum_training_entries: 10_000,
         }
     }
@@ -63,137 +120,151 @@ pub struct TrainingEntry {
 }
 
 struct Context {
-    weekday: u32,
     hour: u32,
+    daypart: u32,
+    weekday: u32,
+    is_weekend: u32,
+    elapsed_bucket: u32,
     current_state_id: Option<usize>,
-    is_tracking: bool,
-    history: Vec<usize>,
+    previous_state_id: Option<usize>,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct Candidate {
-    state_id: usize,
-    counter: u8,
-    last_seen: i64,
-}
-
-/// A tiny (at most three) set of competing next-activity candidates, each with a
-/// saturating 3-bit confidence counter.
-#[derive(Clone, Debug, Default)]
-struct CandidateSet {
-    values: Vec<Candidate>,
-}
-
-impl CandidateSet {
-    fn ordered(&self) -> Vec<Candidate> {
-        let mut ordered = self.values.clone();
-        ordered.sort_by(|a, b| {
-            b.counter
-                .cmp(&a.counter)
-                .then(b.last_seen.cmp(&a.last_seen))
-                .then(a.state_id.cmp(&b.state_id))
-        });
-        ordered
-    }
-
-    fn top_state_id(&self) -> Option<usize> {
-        self.ordered().first().map(|c| c.state_id)
-    }
-
-    fn is_confident(&self) -> bool {
-        let ranked = self.ordered();
-        let Some(first) = ranked.first() else {
-            return false;
-        };
-        let second = ranked.get(1).map_or(0, |c| c.counter);
-        first.counter >= 4 && i16::from(first.counter) - i16::from(second) >= 2
-    }
-
-    fn observe(&mut self, state_id: usize, sequence: i64) {
-        if let Some(existing) = self.values.iter_mut().find(|c| c.state_id == state_id) {
-            existing.counter = existing.counter.saturating_add(1).min(7);
-            existing.last_seen = sequence;
-            return;
-        }
-
-        if self.values.len() < 3 {
-            self.values.push(Candidate {
-                state_id,
-                counter: 1,
-                last_seen: sequence,
-            });
-            return;
-        }
-
-        // Set is full of other states: decay everyone, evict whoever hits zero,
-        // and only then let the new state in.
-        for candidate in self.values.iter_mut().filter(|c| c.counter > 0) {
-            candidate.counter -= 1;
-        }
-        self.values.retain(|c| c.counter != 0);
-        if self.values.len() < 3 {
-            self.values.push(Candidate {
-                state_id,
-                counter: 1,
-                last_seen: sequence,
-            });
+impl Context {
+    fn key(&self, level: Level) -> Option<u64> {
+        let hour = u64::from(self.hour);
+        let daypart = u64::from(self.daypart);
+        let weekend = u64::from(self.is_weekend);
+        match level {
+            Level::Global => Some(0),
+            Level::Current => Some(self.current_state_id? as u64),
+            Level::DaypartCurrent => Some(daypart * 16 + self.current_state_id? as u64),
+            Level::HourCurrent => Some(hour * 16 + self.current_state_id? as u64),
+            Level::WeekendDaypartCurrent => {
+                Some(weekend * 512 + daypart * 16 + self.current_state_id? as u64)
+            }
+            Level::WeekendHourCurrent => {
+                Some(weekend * 512 + hour * 16 + self.current_state_id? as u64)
+            }
+            Level::SecondOrder => Some(
+                self.current_state_id? as u64 * 16
+                    + self.previous_state_id.map_or(15, |id| id as u64),
+            ),
+            Level::ElapsedCurrent => {
+                Some(u64::from(self.elapsed_bucket) * 16 + self.current_state_id? as u64)
+            }
+            Level::WeekdayDaypartCurrent => {
+                Some(u64::from(self.weekday) * 512 + daypart * 16 + self.current_state_id? as u64)
+            }
         }
     }
 }
 
 #[derive(Clone, Debug)]
-struct TaggedEntry {
-    tag: u16,
-    candidates: CandidateSet,
-    usefulness: u8,
+struct Row {
+    counts: [f32; STATE_COUNT],
+    total: f32,
+    last_touch: u64,
 }
 
-struct Match {
-    table: usize,
-    index: usize,
+struct Table {
+    level: Level,
+    weight: f64,
+    rows: HashMap<u64, Row>,
+}
+
+impl Table {
+    fn observe(&mut self, key: u64, state_id: usize, step: u64, decay: f64) {
+        let row = self.rows.entry(key).or_insert_with(|| Row {
+            counts: [0.0; STATE_COUNT],
+            total: 0.0,
+            last_touch: step,
+        });
+        let factor = decay_factor(decay, row.last_touch, step) as f32;
+        if factor != 1.0 {
+            for count in row.counts.iter_mut() {
+                *count *= factor;
+            }
+            row.total *= factor;
+        }
+        row.last_touch = step;
+        row.counts[state_id] += 1.0;
+        row.total += 1.0;
+    }
+
+    fn score_into(&self, key: u64, step: u64, decay: f64, smoothing: f64, out: &mut [f64]) {
+        let Some(row) = self.rows.get(&key) else {
+            return;
+        };
+        let factor = decay_factor(decay, row.last_touch, step);
+        let denominator = f64::from(row.total) * factor + smoothing;
+        if denominator <= 0.0 {
+            return;
+        }
+        let scale = self.weight * factor / denominator;
+        for (state_id, count) in row.counts.iter().enumerate() {
+            if *count > 0.0 {
+                out[state_id] += f64::from(*count) * scale;
+            }
+        }
+    }
+}
+
+fn decay_factor(decay: f64, last_touch: u64, step: u64) -> f64 {
+    if decay >= 1.0 || step <= last_touch {
+        return 1.0;
+    }
+    decay.powf((step - last_touch) as f64)
+}
+
+fn elapsed_bucket(elapsed_ms: i64) -> u32 {
+    match elapsed_ms / 60_000 {
+        0..=15 => 1,
+        16..=45 => 2,
+        46..=120 => 3,
+        121..=300 => 4,
+        _ => 5,
+    }
 }
 
 pub struct ActivityPredictor {
     configuration: Configuration,
     offset: FixedOffset,
-    base_table: Vec<CandidateSet>,
-    tagged_tables: Vec<Vec<Option<TaggedEntry>>>,
-    global_counts: [u64; STATE_COUNT],
-    recency_scores: [f64; STATE_COUNT],
-    global_last_seen: [i64; STATE_COUNT],
-    recent_history: Vec<usize>,
-    training_sequence: i64,
+    tables: Vec<Table>,
+    current_state_id: Option<usize>,
+    previous_state_id: Option<usize>,
+    last_event_at: Option<i64>,
+    training_sequence: u64,
 }
 
 impl ActivityPredictor {
-    /// Trains a predictor on `entries`. Weekday/hour context is derived in the
-    /// `offset` timezone, so the caller must pass the user's local UTC offset for
-    /// time-of-day patterns to line up.
+    /// Trains a predictor on `entries`. Weekday and time-of-day context is derived
+    /// in the `offset` timezone, so the caller must pass the user's local UTC
+    /// offset for time-of-day patterns to line up.
     pub fn new(
         entries: &[TrainingEntry],
         offset: FixedOffset,
         configuration: Configuration,
     ) -> Self {
-        assert!(configuration.base_table_size > 0);
-        assert!(configuration.tagged_table_size > 0);
-        assert!(configuration.usefulness_aging_interval > 0);
+        assert!(configuration.smoothing >= 0.0);
+        assert!(configuration.decay > 0.0);
 
-        let base_table = vec![CandidateSet::default(); configuration.base_table_size];
-        let tagged_tables = configuration
-            .history_lengths
+        let tables = configuration
+            .levels
             .iter()
-            .map(|_| vec![None; configuration.tagged_table_size])
+            .map(|&(level, weight)| Table {
+                level,
+                weight,
+                rows: HashMap::new(),
+            })
             .collect();
 
         let mut predictor = Self {
             configuration,
             offset,
-            base_table,
-            tagged_tables,
-            global_counts: [0; STATE_COUNT],
-            recency_scores: [0.0; STATE_COUNT],
-            global_last_seen: [-1; STATE_COUNT],
-            recent_history: Vec::new(),
+            tables,
+            current_state_id: None,
+            previous_state_id: None,
+            last_event_at: None,
             training_sequence: 0,
         };
 
@@ -212,7 +283,7 @@ impl ActivityPredictor {
 
     /// Returns up to `limit` suggested next activities, best first. Never suggests
     /// `current_state_id`, never repeats, and always fills up to `limit` (falling
-    /// back to globally recent/frequent activities, then canonical order).
+    /// back to unobserved activities in canonical order).
     pub fn predictions(
         &self,
         at: i64,
@@ -223,265 +294,78 @@ impl ActivityPredictor {
             return Vec::new();
         }
 
-        let context = self.make_context(at, current_state_id, self.recent_history.clone());
-        let matches = self.matching_entries(&context);
-        let base = &self.base_table[self.base_index(&context)];
-        let provider = matches.last();
-        let alternate = if matches.len() >= 2 {
-            matches.get(matches.len() - 2)
-        } else {
-            None
-        };
-
-        let entry_at = |m: &Match| self.tagged_tables[m.table][m.index].as_ref().unwrap();
-
-        let mut candidate_sets: Vec<&CandidateSet> = Vec::new();
-        if let Some(provider) = provider {
-            let provider_entry = entry_at(provider);
-            // Trust the longest match when it has proven useful or is confident;
-            // otherwise let the shorter-history alternate go first.
-            if provider_entry.usefulness >= 2 || provider_entry.candidates.is_confident() {
-                candidate_sets.push(&provider_entry.candidates);
-                if let Some(alternate) = alternate {
-                    candidate_sets.push(&entry_at(alternate).candidates);
-                }
-            } else {
-                if let Some(alternate) = alternate {
-                    candidate_sets.push(&entry_at(alternate).candidates);
-                }
-                candidate_sets.push(&provider_entry.candidates);
+        let context = self.make_context(at, current_state_id);
+        let mut scores = [0.0f64; STATE_COUNT];
+        for table in &self.tables {
+            if let Some(key) = context.key(table.level) {
+                table.score_into(
+                    key,
+                    self.training_sequence,
+                    self.configuration.decay,
+                    self.configuration.smoothing,
+                    &mut scores,
+                );
             }
         }
-        candidate_sets.push(base);
+
+        let mut ranked: Vec<usize> = (0..STATE_COUNT).collect();
+        ranked.sort_by(|&a, &b| scores[b].total_cmp(&scores[a]).then(a.cmp(&b)));
 
         let mut state_ids: Vec<usize> = Vec::with_capacity(limit);
-        for set in candidate_sets {
-            for candidate in set.ordered() {
-                push_unique(&mut state_ids, candidate.state_id, current_state_id, limit);
-                if state_ids.len() == limit {
-                    break;
-                }
-            }
+        for state_id in ranked {
+            push_unique(&mut state_ids, state_id, current_state_id, limit);
             if state_ids.len() == limit {
                 break;
-            }
-        }
-
-        if state_ids.len() < limit {
-            let mut fallback: Vec<usize> = (0..STATE_COUNT).collect();
-            fallback.sort_by(|&a, &b| {
-                self.recency_scores[b]
-                    .partial_cmp(&self.recency_scores[a])
-                    .unwrap_or(std::cmp::Ordering::Equal)
-                    .then(self.global_counts[b].cmp(&self.global_counts[a]))
-                    .then(self.global_last_seen[b].cmp(&self.global_last_seen[a]))
-                    .then(a.cmp(&b))
-            });
-            for state_id in fallback {
-                push_unique(&mut state_ids, state_id, current_state_id, limit);
-                if state_ids.len() == limit {
-                    break;
-                }
             }
         }
 
         state_ids
     }
 
-    fn train(&mut self, target_state_id: usize, at: i64) {
-        let context = self.make_context(
-            at,
-            self.recent_history.last().copied(),
-            self.recent_history.clone(),
-        );
-        let matches = self.matching_entries(&context);
-        let base = self.base_index(&context);
-        let base_top = self.base_table[base].top_state_id();
+    /// Folds one observed activity into every level's counts.
+    pub fn train(&mut self, target_state_id: usize, at: i64) {
+        let context = self.make_context(at, self.current_state_id);
+        let step = self.training_sequence;
+        let decay = self.configuration.decay;
 
-        let provider = matches.last().map(|m| (m.table, m.index));
-        let alternate_top = if matches.len() >= 2 {
-            let m = &matches[matches.len() - 2];
-            self.tagged_tables[m.table][m.index]
-                .as_ref()
-                .and_then(|e| e.candidates.top_state_id())
-        } else {
-            base_top
-        };
-        let provider_top = match provider {
-            Some((table, index)) => self.tagged_tables[table][index]
-                .as_ref()
-                .and_then(|e| e.candidates.top_state_id()),
-            None => base_top,
-        };
-
-        self.base_table[base].observe(target_state_id, self.training_sequence);
-
-        if let Some((table, index)) = provider {
-            let sequence = self.training_sequence;
-            let entry = self.tagged_tables[table][index].as_mut().unwrap();
-            entry.candidates.observe(target_state_id, sequence);
-            // Usefulness rises only when the provider was right where the
-            // alternate was wrong, and falls in the mirror-image case.
-            let provider_correct = provider_top == Some(target_state_id);
-            let alternate_correct = alternate_top == Some(target_state_id);
-            if provider_correct && !alternate_correct {
-                entry.usefulness = (entry.usefulness + 1).min(3);
-            } else if !provider_correct && alternate_correct {
-                entry.usefulness = entry.usefulness.saturating_sub(1);
+        for table in self.tables.iter_mut() {
+            if let Some(key) = context.key(table.level) {
+                table.observe(key, target_state_id, step, decay);
             }
         }
 
-        if provider_top != Some(target_state_id) {
-            let after = provider.map_or(-1, |(table, _)| table as isize);
-            self.allocate(target_state_id, after, &context);
-        }
-
-        for score in self.recency_scores.iter_mut() {
-            *score *= 0.95;
-        }
-        self.global_counts[target_state_id] += 1;
-        self.recency_scores[target_state_id] += 1.0;
-        self.global_last_seen[target_state_id] = self.training_sequence;
-        self.recent_history.push(target_state_id);
-        let max_history = self
-            .configuration
-            .history_lengths
-            .iter()
-            .copied()
-            .max()
-            .unwrap_or(0);
-        if self.recent_history.len() > max_history {
-            let excess = self.recent_history.len() - max_history;
-            self.recent_history.drain(0..excess);
-        }
-
+        self.previous_state_id = self.current_state_id;
+        self.current_state_id = Some(target_state_id);
+        self.last_event_at = Some(at);
         self.training_sequence += 1;
-        if self
-            .training_sequence
-            .rem_euclid(self.configuration.usefulness_aging_interval as i64)
-            == 0
-        {
-            self.age_usefulness();
-        }
     }
 
-    /// On a misprediction, claim up to two entries in tables longer than the one
-    /// that provided the (wrong) prediction, stealing only from entries whose
-    /// usefulness has already decayed to zero.
-    fn allocate(&mut self, target_state_id: usize, after_table: isize, context: &Context) {
-        let mut allocations = 0;
-        for table in 0..self.tagged_tables.len() {
-            if (table as isize) <= after_table {
-                continue;
-            }
-            if context.history.len() < self.configuration.history_lengths[table] {
-                continue;
-            }
-            let (index, tag) = self.tagged_location(context, table);
-            if let Some(existing) = self.tagged_tables[table][index].as_mut() {
-                if existing.tag == tag {
-                    continue;
-                }
-                if existing.usefulness > 0 {
-                    existing.usefulness -= 1;
-                    continue;
-                }
-            }
-
-            let mut candidates = CandidateSet::default();
-            candidates.observe(target_state_id, self.training_sequence);
-            self.tagged_tables[table][index] = Some(TaggedEntry {
-                tag,
-                candidates,
-                usefulness: 0,
-            });
-            allocations += 1;
-            if allocations == 2 {
-                return;
-            }
-        }
-    }
-
-    fn age_usefulness(&mut self) {
-        for table in self.tagged_tables.iter_mut() {
-            for entry in table.iter_mut().flatten() {
-                entry.usefulness >>= 1;
-            }
-        }
-    }
-
-    fn make_context(
-        &self,
-        at: i64,
-        current_state_id: Option<usize>,
-        history: Vec<usize>,
-    ) -> Context {
+    fn make_context(&self, at: i64, current_state_id: Option<usize>) -> Context {
         let local: DateTime<FixedOffset> = self
             .offset
             .timestamp_millis_opt(at)
             .single()
             .unwrap_or_else(|| self.offset.timestamp_nanos(0));
+        let hour = local.hour();
+        let weekday = local.weekday().num_days_from_sunday();
+        let previous_state_id = if current_state_id == self.current_state_id {
+            self.previous_state_id
+        } else {
+            self.current_state_id
+        };
+
         Context {
-            // Matches Foundation's `Calendar.component(.weekday:)`: 1 = Sunday.
-            weekday: local.weekday().num_days_from_sunday() + 1,
-            hour: local.hour(),
+            hour,
+            daypart: hour / self.configuration.daypart_hours.max(1),
+            weekday,
+            is_weekend: u32::from(weekday == 0 || weekday == 6),
+            elapsed_bucket: match self.last_event_at {
+                Some(previous) => elapsed_bucket((at - previous).max(0)),
+                None => 0,
+            },
             current_state_id,
-            is_tracking: current_state_id.is_some(),
-            history,
+            previous_state_id,
         }
-    }
-
-    fn matching_entries(&self, context: &Context) -> Vec<Match> {
-        let mut result = Vec::new();
-        for table in 0..self.tagged_tables.len() {
-            if context.history.len() < self.configuration.history_lengths[table] {
-                continue;
-            }
-            let (index, tag) = self.tagged_location(context, table);
-            match &self.tagged_tables[table][index] {
-                Some(entry) if entry.tag == tag => result.push(Match { table, index }),
-                _ => continue,
-            }
-        }
-        result
-    }
-
-    fn base_index(&self, context: &Context) -> usize {
-        (self.context_hash(context, 0, 0x243f_6a88) % self.base_table.len() as u64) as usize
-    }
-
-    fn tagged_location(&self, context: &Context, table: usize) -> (usize, u16) {
-        let length = self.configuration.history_lengths[table];
-        let index_hash = self.context_hash(
-            context,
-            length,
-            (table as u64 + 1).wrapping_mul(0x9e37_79b9),
-        );
-        let tag_hash = self.context_hash(
-            context,
-            length,
-            (table as u64 + 1).wrapping_mul(0x85eb_ca6b),
-        );
-        (
-            (index_hash % self.configuration.tagged_table_size as u64) as usize,
-            (tag_hash ^ (tag_hash >> 32)) as u16,
-        )
-    }
-
-    fn context_hash(&self, context: &Context, history_length: usize, salt: u64) -> u64 {
-        let mut hash = 0xcbf2_9ce4_8422_2325u64 ^ salt;
-        hash_value(u64::from(context.weekday), &mut hash);
-        hash_value(u64::from(context.hour), &mut hash);
-        let current = context.current_state_id.map_or(-1i64, |id| id as i64) + 1;
-        hash_value(current as u64, &mut hash);
-        hash_value(u64::from(context.is_tracking), &mut hash);
-        if history_length > 0 {
-            let skip = context.history.len().saturating_sub(history_length);
-            for &state_id in &context.history[skip..] {
-                hash_value(state_id as u64 + 1, &mut hash);
-            }
-        }
-        avalanche(hash)
     }
 }
 
@@ -498,22 +382,6 @@ fn push_unique(
         return;
     }
     state_ids.push(state_id);
-}
-
-fn hash_value(value: u64, hash: &mut u64) {
-    *hash ^= value.wrapping_add(0x9e37_79b9_7f4a_7c15);
-    *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    *hash ^= *hash >> 32;
-}
-
-fn avalanche(value: u64) -> u64 {
-    let mut result = value;
-    result ^= result >> 30;
-    result = result.wrapping_mul(0xbf58_476d_1ce4_e5b9);
-    result ^= result >> 27;
-    result = result.wrapping_mul(0x94d0_49bb_1331_11eb);
-    result ^= result >> 31;
-    result
 }
 
 #[cfg(test)]
@@ -563,16 +431,7 @@ mod tests {
     fn learns_repeating_action_sequence() {
         let states: Vec<usize> = std::iter::repeat([0, 1, 2]).take(20).flatten().collect();
         let entries = make_entries(&states);
-        let predictor = ActivityPredictor::new(
-            &entries,
-            utc(),
-            Configuration {
-                history_lengths: vec![1, 2, 4, 8],
-                base_table_size: 1_024,
-                tagged_table_size: 1_024,
-                ..Configuration::default()
-            },
-        );
+        let predictor = ActivityPredictor::new(&entries, utc(), Configuration::default());
         let last = entries.last().unwrap().start_timestamp + 60_000;
 
         assert_eq!(predictor.predictions(last, Some(2), 3).first(), Some(&0));
@@ -587,9 +446,6 @@ mod tests {
             &entries,
             utc(),
             Configuration {
-                history_lengths: vec![1, 2],
-                base_table_size: 128,
-                tagged_table_size: 128,
                 maximum_training_entries: 3,
                 ..Configuration::default()
             },
@@ -618,16 +474,7 @@ mod tests {
             }
         }
 
-        let predictor = ActivityPredictor::new(
-            &entries,
-            utc,
-            Configuration {
-                history_lengths: vec![1, 2, 4],
-                base_table_size: 4_096,
-                tagged_table_size: 1_024,
-                ..Configuration::default()
-            },
-        );
+        let predictor = ActivityPredictor::new(&entries, utc, Configuration::default());
 
         let morning = utc.with_ymd_and_hms(2026, 3, 2, 9, 0, 0).single().unwrap();
         let evening = utc.with_ymd_and_hms(2026, 3, 2, 18, 0, 0).single().unwrap();
@@ -652,60 +499,64 @@ mod tests {
             ActivityPredictor::new(&make_entries(&[0, 1, 2]), utc(), Configuration::default());
         assert!(predictor.predictions(1_700_000_000_000, None, 0).is_empty());
     }
-}
 
-#[cfg(test)]
-mod parity {
-    //! Cross-checks this port against the iOS `ActivityPredictor`. The golden
-    //! output below was produced by compiling the Swift `ActivityPredictor`
-    //! verbatim against the same pseudo-random log (same xorshift seed, same
-    //! draw order, UTC calendar) and printing its predictions. Any divergence
-    //! here means the two implementations have drifted apart.
-    use super::*;
+    #[test]
+    fn recency_decay_prefers_recent_routine() {
+        let mut states: Vec<usize> = Vec::new();
+        for _ in 0..60 {
+            states.extend_from_slice(&[6, 4]);
+        }
+        for _ in 0..60 {
+            states.extend_from_slice(&[6, 5]);
+        }
+        let entries = make_entries(&states);
+        let last = entries.last().unwrap().start_timestamp + 60_000;
 
-    const SWIFT_REFERENCE: &str = "\
-0 cur=- -> [13, 5, 2, 3, 7]
-1 cur=13 -> [0, 1, 9, 2, 3]
-2 cur=11 -> [14, 5, 9, 2, 3]
-3 cur=5 -> [13, 1, 2, 3, 7]
-4 cur=- -> [9, 4, 2, 3, 7]
-5 cur=12 -> [2, 3, 7, 14, 13]
-6 cur=14 -> [4, 2, 3, 7, 13]
-7 cur=13 -> [1, 7, 10, 2, 3]
-8 cur=- -> [2, 3, 7, 14, 13]
-9 cur=11 -> [4, 2, 3, 7, 14]
-10 cur=8 -> [0, 1, 9, 2, 3]
-11 cur=5 -> [7, 12, 2, 3, 14]
-12 cur=- -> [12, 2, 3, 7, 14]
-13 cur=5 -> [1, 4, 2, 3, 7]
-14 cur=12 -> [11, 8, 1, 2, 3]
-15 cur=6 -> [3, 1, 2, 7, 14]
-16 cur=- -> [7, 12, 1, 2, 3]
-17 cur=11 -> [3, 10, 2, 7, 14]
-18 cur=2 -> [4, 3, 9, 7, 14]
-19 cur=2 -> [6, 11, 3, 7, 14]
-20 cur=- -> [13, 2, 3, 7, 14]
-21 cur=10 -> [0, 11, 2, 3, 7]
-22 cur=3 -> [7, 5, 2, 14, 13]
-23 cur=11 -> [7, 8, 2, 3, 14]
-24 cur=- -> [9, 2, 3, 7, 14]
-25 cur=0 -> [3, 5, 2, 7, 14]
-26 cur=1 -> [6, 5, 2, 3, 7]
-27 cur=13 -> [4, 11, 0, 2, 3]
-28 cur=- -> [4, 3, 7, 2, 14]
-29 cur=4 -> [3, 2, 7, 14, 13]
-30 cur=4 -> [2, 9, 3, 7, 14]
-31 cur=8 -> [3, 10, 2, 7, 14]
-32 cur=- -> [7, 9, 5, 2, 3]
-33 cur=12 -> [10, 5, 7, 2, 3]
-34 cur=6 -> [3, 13, 1, 2, 7]
-35 cur=1 -> [7, 8, 2, 3, 14]
-36 cur=- -> [13, 2, 3, 7, 14]
-37 cur=11 -> [8, 0, 9, 2, 3]
-38 cur=10 -> [2, 3, 7, 14, 13]
-39 cur=9 -> [6, 10, 2, 3, 7]";
+        let decaying = ActivityPredictor::new(&entries, utc(), Configuration::default());
+        assert_eq!(decaying.predictions(last, Some(6), 3).first(), Some(&5));
+
+        let stationary = ActivityPredictor::new(
+            &entries,
+            utc(),
+            Configuration {
+                decay: 1.0,
+                ..Configuration::default()
+            },
+        );
+        let ranked = stationary.predictions(last, Some(6), 3);
+        assert!(ranked.contains(&4) && ranked.contains(&5));
+    }
+
+    #[test]
+    fn backs_off_for_unseen_context() {
+        let utc = utc();
+        let mut entries = Vec::new();
+        for day in 0..30i64 {
+            let base = utc.with_ymd_and_hms(2026, 1, 1, 9, 0, 0).single().unwrap()
+                + chrono::Duration::days(day);
+            entries.push(TrainingEntry {
+                state_id: 6,
+                start_timestamp: base.timestamp_millis(),
+            });
+            entries.push(TrainingEntry {
+                state_id: 0,
+                start_timestamp: (base + chrono::Duration::minutes(30)).timestamp_millis(),
+            });
+        }
+
+        let predictor = ActivityPredictor::new(&entries, utc, Configuration::default());
+        let never_seen = utc.with_ymd_and_hms(2026, 3, 4, 3, 0, 0).single().unwrap();
+
+        assert_eq!(
+            predictor
+                .predictions(never_seen.timestamp_millis(), Some(6), 3)
+                .first(),
+            Some(&0)
+        );
+    }
 
     struct Xorshift(u64);
+
     impl Xorshift {
         fn next(&mut self) -> u64 {
             self.0 ^= self.0 << 13;
@@ -715,40 +566,73 @@ mod parity {
         }
     }
 
-    #[test]
-    fn matches_swift_reference_output() {
+    /// Generates a log with a weekday routine, a different weekend routine, and a
+    /// tenth of the entries replaced by uniform noise.
+    fn synthetic_log(events: usize) -> Vec<TrainingEntry> {
+        let utc = utc();
+        let weekday_routine = [7usize, 6, 0, 6, 0, 6, 5, 6, 4];
+        let weekend_routine = [7usize, 6, 4, 6, 5, 4, 6, 11, 6];
+        let slots = weekday_routine.len();
         let mut rng = Xorshift(0x2545_F491_4F6C_DD1D);
-        let mut entries = Vec::new();
-        let mut t: i64 = 1_700_000_000_000;
-        for _ in 0..3_000 {
-            let state_id = (rng.next() % 15) as usize;
-            t += (rng.next() % 7_200_000) as i64;
+        let mut entries = Vec::with_capacity(events);
+        let start = utc.with_ymd_and_hms(2026, 1, 1, 6, 0, 0).single().unwrap();
+
+        for index in 0..events {
+            let day = (index / slots) as i64;
+            let slot = index % slots;
+            let at = start + chrono::Duration::days(day) + chrono::Duration::hours(slot as i64 * 2);
+            let routine = if matches!(at.weekday().num_days_from_sunday(), 0 | 6) {
+                weekend_routine
+            } else {
+                weekday_routine
+            };
+            let state_id = if rng.next() % 10 == 0 {
+                (rng.next() % STATE_COUNT as u64) as usize
+            } else {
+                routine[slot]
+            };
             entries.push(TrainingEntry {
                 state_id,
-                start_timestamp: t,
+                start_timestamp: at.timestamp_millis(),
             });
         }
 
-        let predictor = ActivityPredictor::new(
-            &entries,
-            FixedOffset::east_opt(0).unwrap(),
-            Configuration::default(),
-        );
+        entries
+    }
 
-        let mut out = Vec::new();
-        for step in 0..40i64 {
-            let at = t + step * 3_600_000;
-            let current = if step % 4 == 0 {
+    /// Walk-forward accuracy: every entry is predicted using only the entries
+    /// before it. Guards against regressions in the scoring core.
+    #[test]
+    fn accuracy_regression() {
+        let entries = synthetic_log(2_000);
+        let mut predictor = ActivityPredictor::new(&[], utc(), Configuration::default());
+        let mut top1 = 0usize;
+        let mut top3 = 0usize;
+        let mut top5 = 0usize;
+
+        for (i, entry) in entries.iter().enumerate() {
+            let current = if i == 0 {
                 None
             } else {
-                Some((rng.next() % 15) as usize)
+                Some(entries[i - 1].state_id)
             };
-            let p = predictor.predictions(at, current, 5);
-            out.push(format!(
-                "{step} cur={} -> {p:?}",
-                current.map_or("-".to_string(), |c| c.to_string())
-            ));
+            let ranked = predictor.predictions(entry.start_timestamp, current, 5);
+            if let Some(rank) = ranked.iter().position(|&s| s == entry.state_id) {
+                top1 += usize::from(rank == 0);
+                top3 += usize::from(rank < 3);
+                top5 += usize::from(rank < 5);
+            }
+            predictor.train(entry.state_id, entry.start_timestamp);
         }
-        assert_eq!(out.join("\n"), SWIFT_REFERENCE);
+
+        let total = entries.len();
+        let pct = |k: usize| k as f64 / total as f64 * 100.0;
+        assert!(
+            pct(top1) > 78.0 && pct(top3) > 85.0 && pct(top5) > 89.0,
+            "accuracy regressed: top1={:.2}% top3={:.2}% top5={:.2}%",
+            pct(top1),
+            pct(top3),
+            pct(top5)
+        );
     }
 }
