@@ -3,3 +3,5 @@
 .DS_Store
 .claude/
 **/xcuserdata/
+__pycache__/
+/data/worldmm-egolife/
