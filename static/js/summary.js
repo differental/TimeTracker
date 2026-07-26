@@ -1,6 +1,7 @@
 const PIE_NS = 'http://www.w3.org/2000/svg';
 const PIE_C = 21;
 const PIE_R = 15.91549431;
+const RANGE_MAX_DAYS = 3650;
 
 function summaryError(message) {
     const el = document.getElementById('summary-error');
@@ -16,6 +17,8 @@ function summaryError(message) {
 
 let summaryTotals = [];
 let summaryTotal = 0;
+let pinnedSlice = null;
+let hoverSlice = null;
 
 function setDonutFace(idx) {
     const labelEl = document.getElementById('range-label');
@@ -41,11 +44,29 @@ function setDonutFace(idx) {
     pctEl.textContent = `${((ms / summaryTotal) * 100).toFixed(1)}% of ${msToReadable(summaryTotal)}`;
 }
 
-function highlightSlice(idx) {
+function activeSlice() {
+    return pinnedSlice !== null ? pinnedSlice : hoverSlice;
+}
+
+function applyHighlight() {
+    const idx = activeSlice();
+
     document.querySelectorAll('#pie circle').forEach(c => {
         c.style.opacity = (idx === null || Number(c.dataset.state) === idx) ? '1' : '0.28';
     });
+
+    document.querySelectorAll('#legend .legend-row[data-state]').forEach(row => {
+        const on = Number(row.dataset.state) === idx;
+        row.classList.toggle('is-active', on);
+        row.setAttribute('aria-pressed', String(on));
+    });
+
     setDonutFace(idx);
+}
+
+function sliceFromEvent(ev) {
+    const el = ev.target?.closest?.('#pie circle[data-state], #legend .legend-row[data-state]');
+    return el ? Number(el.dataset.state) : null;
 }
 
 function renderSegments(msArray) {
@@ -57,6 +78,8 @@ function renderSegments(msArray) {
 
     summaryTotals = msArray;
     summaryTotal = total;
+    pinnedSlice = null;
+    hoverSlice = null;
     setDonutFace(null);
 
     const denom = total || 1;
@@ -77,13 +100,18 @@ function renderSegments(msArray) {
             circle.setAttribute('stroke-dasharray', `${percent} ${100 - percent}`);
             circle.setAttribute('stroke-dashoffset', offset.toString());
             circle.dataset.state = String(idx);
-            circle.addEventListener('mouseenter', () => highlightSlice(idx));
-            circle.addEventListener('mouseleave', () => highlightSlice(null));
             svg.appendChild(circle);
         }
 
         const li = document.createElement('li');
-        if (ms <= 0) li.className = 'legend-empty';
+        const row = document.createElement(ms > 0 ? 'button' : 'div');
+        row.className = ms > 0 ? 'legend-row' : 'legend-row legend-empty';
+
+        if (ms > 0) {
+            row.setAttribute('type', 'button');
+            row.dataset.state = String(idx);
+            row.setAttribute('aria-pressed', 'false');
+        }
 
         const colorDot = document.createElement('span');
         colorDot.className = 'legend-color';
@@ -104,23 +132,29 @@ function renderSegments(msArray) {
         amount.className = 'legend-amount';
         amount.textContent = msToReadable(ms);
 
-        li.append(colorDot, labelText, bar, amount);
-
-        if (ms > 0) {
-            li.addEventListener('mouseenter', () => highlightSlice(idx));
-            li.addEventListener('mouseleave', () => highlightSlice(null));
-        }
-
+        row.append(colorDot, labelText, bar, amount);
+        li.appendChild(row);
         legend.appendChild(li);
 
         offset = offset - percent;
     });
 }
 
-async function loadRange(days) {
+function setActiveRange(key) {
     document.querySelectorAll('.range-btn').forEach(btn => {
-        btn.setAttribute('aria-pressed', String(parseInt(btn.getAttribute('data-range'), 10) === days));
+        btn.setAttribute('aria-pressed', String(btn.dataset.range === String(key)));
     });
+}
+
+function setCustomOpen(open) {
+    const panel = document.getElementById('range-custom');
+    const btn = document.querySelector('.range-btn[data-range="custom"]');
+    if (panel) panel.classList.toggle('hidden', !open);
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+}
+
+async function loadRange(days, key = String(days)) {
+    setActiveRange(key);
 
     try {
         const resp = await fetch(`/api/data?key=${window.ENTRY_KEY}&days=${encodeURIComponent(days)}`);
@@ -137,9 +171,79 @@ async function loadRange(days) {
     }
 }
 
+function applyCustomRange() {
+    const input = document.getElementById('range-custom-input');
+    if (!input) return;
+
+    const raw = input.value.trim();
+    const days = Number(raw);
+
+    if (raw === '' || !Number.isInteger(days) || days < 1 || days > RANGE_MAX_DAYS) {
+        summaryError(`Please enter a whole number of days between 1 and ${RANGE_MAX_DAYS}.`);
+        return;
+    }
+
+    summaryError('');
+    loadRange(days, 'custom');
+}
+
 document.querySelectorAll('.range-btn').forEach(btn => {
-    btn.addEventListener('click', (ev) => {
-        const days = parseInt(ev.currentTarget.getAttribute('data-range'), 10);
-        loadRange(days);
+    btn.addEventListener('click', () => {
+        if (btn.dataset.range === 'custom') {
+            setCustomOpen(true);
+            setActiveRange('custom');
+            const input = document.getElementById('range-custom-input');
+            if (input) input.focus();
+            return;
+        }
+
+        setCustomOpen(false);
+        const days = parseInt(btn.dataset.range, 10);
+        if (!Number.isNaN(days)) loadRange(days);
+    });
+});
+
+const rangeCustomApply = document.getElementById('range-custom-apply');
+if (rangeCustomApply) {
+    rangeCustomApply.addEventListener('click', () => applyCustomRange());
+}
+
+const rangeCustomInput = document.getElementById('range-custom-input');
+if (rangeCustomInput) {
+    rangeCustomInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+            ev.preventDefault();
+            applyCustomRange();
+        }
+    });
+}
+
+document.addEventListener('click', (ev) => {
+    const idx = sliceFromEvent(ev);
+    pinnedSlice = (idx !== null && idx !== pinnedSlice) ? idx : null;
+    applyHighlight();
+});
+
+document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && pinnedSlice !== null) {
+        pinnedSlice = null;
+        applyHighlight();
+    }
+});
+
+['pie', 'legend'].forEach(id => {
+    const root = document.getElementById(id);
+    if (!root) return;
+
+    root.addEventListener('pointerover', (ev) => {
+        if (ev.pointerType !== 'mouse') return;
+        hoverSlice = sliceFromEvent(ev);
+        applyHighlight();
+    });
+
+    root.addEventListener('pointerleave', (ev) => {
+        if (ev.pointerType !== 'mouse') return;
+        hoverSlice = null;
+        applyHighlight();
     });
 });

@@ -59,6 +59,14 @@ function dialScaffold(svg) {
 
 function dialMarker(svg, nowMs) {
     const deg = dialAngle(nowMs);
+
+    const [lix, liy] = dialPolar(60.5, deg);
+    const [lox, loy] = dialPolar(79.5, deg);
+    svg.appendChild(dialEl('line', {
+        class: 'dial-now-line',
+        x1: lix.toFixed(2), y1: liy.toFixed(2), x2: lox.toFixed(2), y2: loy.toFixed(2)
+    }));
+
     const [tx, ty] = dialPolar(79.5, deg);
     const [rx, ry] = dialPolar(86, deg - 2.6);
     const [sx, sy] = dialPolar(86, deg + 2.6);

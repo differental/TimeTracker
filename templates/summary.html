@@ -12,10 +12,21 @@
                 <h1 class="page-title">Summary</h1>
                 <p class="page-sub">How your time divides up.</p>
             </div>
-            <div class="range" role="group" aria-label="Time range">
-                <button type="button" class="range-btn" data-range="1" aria-pressed="false"><span>24 h</span></button>
-                <button type="button" class="range-btn" data-range="7" aria-pressed="true"><span>7 d</span></button>
-                <button type="button" class="range-btn" data-range="30" aria-pressed="false"><span>30 d</span></button>
+            <div class="range-wrap">
+                <div class="range" role="group" aria-label="Time range">
+                    <button type="button" class="range-btn" data-range="1" aria-pressed="false"><span>24 h</span></button>
+                    <button type="button" class="range-btn" data-range="7" aria-pressed="true"><span>7 d</span></button>
+                    <button type="button" class="range-btn" data-range="30" aria-pressed="false"><span>30 d</span></button>
+                    <button type="button" class="range-btn" data-range="custom" aria-pressed="false"
+                        aria-expanded="false" aria-controls="range-custom"><span>Custom</span></button>
+                </div>
+                <div class="range-custom hidden" id="range-custom">
+                    <label for="range-custom-input">Last</label>
+                    <input id="range-custom-input" class="field" type="number" min="1" max="3650" step="1"
+                        value="14" inputmode="numeric">
+                    <span>days</span>
+                    <button type="button" id="range-custom-apply" class="btn btn-primary">Apply</button>
+                </div>
             </div>
         </div>
 
