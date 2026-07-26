@@ -121,44 +121,6 @@ function dialRenderSegments(svg, segs, fromMs, toMs) {
     tiny.forEach(p => svg.appendChild(p));
 }
 
-function dialRenderLegend(segs) {
-    const list = document.getElementById('dial-legend');
-    if (!list) return;
-    list.innerHTML = '';
-
-    if (segs.length === 0) {
-        const li = document.createElement('li');
-        li.textContent = 'Nothing recorded in the last 24 hours.';
-        list.appendChild(li);
-        return;
-    }
-
-    const totals = new Map();
-    segs.forEach(s => totals.set(s.state, (totals.get(s.state) || 0) + (s.end - s.start)));
-
-    [...totals.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 6)
-        .forEach(([stateIdx, ms]) => {
-            const meta = STATE_META[stateIdx];
-            const li = document.createElement('li');
-
-            const swatch = document.createElement('span');
-            swatch.className = 'swatch';
-            swatch.style.background = meta ? meta[2] : '#ccc';
-
-            const name = document.createElement('span');
-            name.textContent = meta ? meta[1] : `State ${stateIdx}`;
-
-            const amount = document.createElement('span');
-            amount.className = 'amount';
-            amount.textContent = msToReadable(ms);
-
-            li.append(swatch, name, amount);
-            list.appendChild(li);
-        });
-}
-
 async function loadDial() {
     const svg = document.getElementById('dial');
     if (!svg) return;
@@ -185,7 +147,6 @@ async function loadDial() {
     const segs = buildSegments(pairs, from, now);
     dialRenderSegments(svg, segs, from, now);
     dialMarker(svg, now);
-    dialRenderLegend(segs);
 }
 
 document.addEventListener('DOMContentLoaded', () => loadDial());
