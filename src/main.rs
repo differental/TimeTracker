@@ -29,8 +29,10 @@ use constants::AppState;
 mod handlers;
 use handlers::{
     add_entry, fetch_length, fetch_recent_states, fetch_summary_data, force_set_length, get_entry,
-    serve_embedded_assets, update_entry,
+    serve_embedded_assets, suggest_next_states, update_entry,
 };
+
+mod predictor;
 
 mod pages;
 use pages::{display_explanations, display_index, display_recents, display_summary};
@@ -60,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/length", get(fetch_length))
         .route("/api/length", post(force_set_length))
         .route("/api/recents", get(fetch_recent_states))
+        .route("/api/suggest", get(suggest_next_states))
         .layer(middleware::from_fn(auth_user));
 
     let public_app = Router::new().route("/static/{*file}", get(serve_embedded_assets));
