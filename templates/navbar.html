@@ -1,40 +1,60 @@
-{%- decl base_color -%}
-{%- if is_emergency -%}
-    {%- let base_color = "red" -%}
-{%- else -%}
-    {%- let base_color = "blue" -%}
-{%- endif -%}
-<nav class="bg-{{base_color}}-600 text-white p-4 fixed inset-x-0 top-0 z-50">
-    <div class="max-w-5xl mx-auto flex justify-between items-center">
-        <a href="/?key={{ key }}" class="flex items-center gap-2 font-bold text-xl">
-            <span class="text-2xl">⏱️</span>
+<nav class="nav">
+    <div class="shell nav-bar">
+        <a href="/?key={{ key }}" class="brand">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="9" opacity="0.45"></circle>
+                    <path d="M12 12V6.5"></path>
+                    <path d="M12 12l4 2.6"></path>
+                </svg>
+            </span>
             <span>TimeTracker</span>
         </a>
-        <div class="hidden md:flex items-center gap-6">
-            <a href="/?key={{ key }}" class="text-base {% if current_page == "index" %}font-semibold{% endif %} hover:underline">Home</a>
-            <a href="/recents?key={{ key }}" class="text-base {% if current_page == "recents" %}font-semibold{% endif %} hover:underline">Recents</a>
-            <a href="/summary?key={{ key }}" class="text-base {% if current_page == "summary" %}font-semibold{% endif %} hover:underline">Summary</a>
-            <a href="/explanations?key={{ key }}" class="text-base {% if current_page == "explanations" %}font-semibold{% endif %} hover:underline">Explanations</a>
+
+        <div class="nav-links">
+            <a href="/?key={{ key }}" class="nav-link"{% if current_page == "index" %} aria-current="page"{% endif %}>Now</a>
+            <a href="/recents?key={{ key }}" class="nav-link"{% if current_page == "recents" %} aria-current="page"{% endif %}>Recents</a>
+            <a href="/summary?key={{ key }}" class="nav-link"{% if current_page == "summary" %} aria-current="page"{% endif %}>Summary</a>
+            <a href="/explanations?key={{ key }}" class="nav-link"{% if current_page == "explanations" %} aria-current="page"{% endif %}>Activities</a>
         </div>
-        <div class="flex items-center gap-3">
-            <div class="block md:hidden text-base bg-{{base_color}}-700 px-3 py-1 rounded font-mono">Key: {{ key }}</div>
-            <div class="hidden md:block text-{{base_color}}-100 text-sm">Key: <span class="font-mono text-white">{{ key }}</span></div>
-            <button id="navToggle" class="md:hidden inline-flex items-center justify-center p-2 rounded-md text-{{base_color}}-100 hover:bg-{{base_color}}-500" aria-expanded="false" aria-controls="mobileNav" aria-label="Open navigation">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 6h16M4 12h16M4 18h16"></path>
-                </svg>
-            </button>
+
+        <div class="nav-side">
+            <span class="keytag" title="Access key">Key <b>{{ key }}</b></span>
         </div>
     </div>
-    <div id="mobileNav" class="md:hidden hidden pb-4 bg-{{base_color}}-600">
-        <div class="max-w-5xl mx-auto px-4">
-            <div class="flex flex-col space-y-2">
-                <a href="/?key={{ key }}" class="block px-3 py-3 rounded text-base text-{{base_color}}-100 hover:bg-{{base_color}}-500" role="menuitem">Home</a>
-                <a href="/recents?key={{ key }}" class="block px-3 py-3 rounded text-base text-{{base_color}}-100 hover:bg-{{base_color}}-500" role="menuitem">Recents</a>
-                <a href="/summary?key={{ key }}" class="block px-3 py-3 rounded text-base text-{{base_color}}-100 hover:bg-{{base_color}}-500" role="menuitem">Summary</a>
-                <a href="/explanations?key={{ key }}" class="block px-3 py-3 rounded text-base text-{{base_color}}-100 hover:bg-{{base_color}}-500" role="menuitem">Explanations</a>
-            </div>
-        </div>
-    </div>
+</nav>
+
+<nav class="tabbar" aria-label="Primary">
+    <a href="/?key={{ key }}" class="tab"{% if current_page == "index" %} aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5"></circle>
+            <path d="M12 12V7"></path>
+            <path d="M12 12l3.6 2.3"></path>
+        </svg>
+        <span>Now</span>
+    </a>
+    <a href="/recents?key={{ key }}" class="tab"{% if current_page == "recents" %} aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16"></path>
+            <path d="M4 12h16"></path>
+            <path d="M4 17h10"></path>
+        </svg>
+        <span>Recents</span>
+    </a>
+    <a href="/summary?key={{ key }}" class="tab"{% if current_page == "summary" %} aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5H12z"></path>
+            <path d="M15 3.9A8.5 8.5 0 0 1 20.1 9H15z"></path>
+        </svg>
+        <span>Summary</span>
+    </a>
+    <a href="/explanations?key={{ key }}" class="tab"{% if current_page == "explanations" %} aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="4" width="7" height="7" rx="2"></rect>
+            <rect x="13" y="4" width="7" height="7" rx="2"></rect>
+            <rect x="4" y="13" width="7" height="7" rx="2"></rect>
+            <rect x="13" y="13" width="7" height="7" rx="2"></rect>
+        </svg>
+        <span>Activities</span>
+    </a>
 </nav>

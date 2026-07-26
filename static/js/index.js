@@ -6,106 +6,133 @@ function updateElapsed() {
     document.getElementById('elapsed').textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
+const switchSheet = document.getElementById('switch-sheet');
+const switchInput = document.getElementById('switch-start-input');
+const switchNowBtn = document.getElementById('switch-now-btn');
+const switchTarget = document.getElementById('switch-target');
+const switchError = document.getElementById('switch-error');
+const switchConfirm = document.getElementById('switch-confirm');
+const switchCancel = document.getElementById('switch-cancel');
+
+let pendingState = null;
+let useNow = true;
+
+function setUseNow(on) {
+    useNow = on;
+    switchNowBtn.setAttribute('aria-pressed', String(on));
+}
+
+function showSwitchError(message) {
+    switchError.textContent = message;
+    switchError.classList.remove('hidden');
+}
+
+function clearSwitchError() {
+    switchError.textContent = '';
+    switchError.classList.add('hidden');
+}
+
+function setSwitchBusy(busy, label) {
+    switchConfirm.disabled = busy;
+    switchCancel.disabled = busy;
+    switchInput.disabled = busy;
+    switchNowBtn.disabled = busy;
+    switchConfirm.textContent = label;
+}
+
+function resolveStartTimestamp() {
+    if (useNow) {
+        return Date.now();
+    }
+    const val = switchInput && switchInput.value;
+    if (!val) {
+        showSwitchError('Please choose a start time.');
+        return null;
+    }
+    const ms = new Date(val).getTime();
+    if (Number.isNaN(ms)) {
+        showSwitchError('Invalid date/time.');
+        return null;
+    }
+    if (ms > Date.now()) {
+        showSwitchError('Start time cannot be in the future.');
+        return null;
+    }
+    if (ms < start) {
+        showSwitchError('Start time must be after the current activity started.');
+        return null;
+    }
+    return ms;
+}
+
+function closeSwitchSheet() {
+    if (switchSheet.open) switchSheet.close();
+}
+
+async function submitSwitch() {
+    clearSwitchError();
+    const startTimestamp = resolveStartTimestamp();
+    if (startTimestamp === null) return;
+
+    setSwitchBusy(true, 'Saving…');
+    try {
+        // force: true lets add_entry accept a backdated start (it otherwise
+        // rejects timestamps older than ~5s). The picker already guards
+        // start < ts <= now, and the backend still enforces ordering.
+        const payload = { new_state: pendingState, start_timestamp: startTimestamp, force: true };
+        const response = await fetch(`/api/entry?key=${window.ENTRY_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            setSwitchBusy(false, 'Change activity');
+            showSwitchError(errText || `Request failed (${response.status}).`);
+            return;
+        }
+
+        await response.json();
+        setSwitchBusy(true, 'Saved');
+        setTimeout(() => location.reload(), 420);
+    } catch (err) {
+        setSwitchBusy(false, 'Change activity');
+        showSwitchError((err && err.message) ? err.message : String(err));
+    }
+}
+
 document.querySelectorAll('.change-state-btn').forEach(btn => {
-    btn.addEventListener('click', async (ev) => {
-        const newState = parseInt(ev.currentTarget.value, 10);
+    btn.addEventListener('click', (ev) => {
+        pendingState = parseInt(ev.currentTarget.value, 10);
         // `start` (from index.html) is the current activity's start time - the
         // earliest legal start for the next activity. Default the picker to now.
         const nowVal = msToDatetimeLocal(Date.now());
-        const minVal = msToDatetimeLocal(start);
-        let useNow = true;
-        const result = await Swal.fire({
-            icon: 'warning',
-            title: 'Confirmation',
-            html: `
-                <p style="margin-bottom:0.75rem;">Change state to <strong>${STATES_NAMES[newState]}</strong>?</p>
-                <div style="display:flex; align-items:stretch; justify-content:center; gap:0.5rem;">
-                    <input id="switch-start-input" type="datetime-local" class="swal2-input" style="margin:0;" value="${nowVal}" min="${minVal}" max="${nowVal}" step="60">
-                    <button type="button" id="switch-now-btn" class="now-toggle" aria-pressed="true">NOW</button>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: 'Yes',
-            cancelButtonText: 'Cancel',
-            didOpen: () => {
-                const input = document.getElementById('switch-start-input');
-                const nowBtn = document.getElementById('switch-now-btn');
-                const setUseNow = (on) => {
-                    useNow = on;
-                    nowBtn.setAttribute('aria-pressed', String(on));
-                };
-                nowBtn.addEventListener('click', () => setUseNow(true));
-                input.addEventListener('focus', () => setUseNow(false));
-                input.addEventListener('input', () => setUseNow(false));
-            },
-            preConfirm: () => {
-                if (useNow) {
-                    return Date.now();
-                }
-                const el = document.getElementById('switch-start-input');
-                const val = el && el.value;
-                if (!val) {
-                    Swal.showValidationMessage('Please choose a start time.');
-                    return false;
-                }
-                const ms = new Date(val).getTime();
-                if (Number.isNaN(ms)) {
-                    Swal.showValidationMessage('Invalid date/time.');
-                    return false;
-                }
-                if (ms > Date.now()) {
-                    Swal.showValidationMessage('Start time cannot be in the future.');
-                    return false;
-                }
-                if (ms < start) {
-                    Swal.showValidationMessage('Start time must be after the current activity started.');
-                    return false;
-                }
-                return ms;
-            }
-        });
-        if (!result.isConfirmed) return;
-        const startTimestamp = result.value;
-
-        try {
-            Swal.fire({
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-            // force: true lets add_entry accept a backdated start (it otherwise
-            // rejects timestamps older than ~5s). The picker already guards
-            // start < ts <= now, and the backend still enforces ordering.
-            const payload = { new_state: newState, start_timestamp: startTimestamp, force: true };
-            const response = await fetch(`/api/entry?key=${window.ENTRY_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            Swal.close();
-
-            if (!response.ok) {
-                const errText = await response.text();
-                await Swal.fire({ icon: 'error', title: 'Error', text: errText });
-                return;
-            }
-
-            await response.json();
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Update Successful',
-                text: 'State saved. Reloading...',
-                showConfirmButton: false,
-                timer: 2000,
-                timerProgressBar: true,
-                willClose: () => location.reload()
-            });
-        } catch (err) {
-            Swal.close();
-            const msg = (err && err.message) ? err.message : String(err);
-            await Swal.fire({ icon: 'error', title: 'Error', text: msg });
-        }
+        switchInput.value = nowVal;
+        switchInput.min = msToDatetimeLocal(start);
+        switchInput.max = nowVal;
+        switchTarget.textContent = STATES_NAMES[pendingState];
+        clearSwitchError();
+        setSwitchBusy(false, 'Change activity');
+        switchSheet.showModal();
+        switchConfirm.focus();
+        setUseNow(true);
     });
+});
+
+switchNowBtn.addEventListener('click', () => setUseNow(true));
+switchInput.addEventListener('focus', () => setUseNow(false));
+switchInput.addEventListener('input', () => setUseNow(false));
+switchConfirm.addEventListener('click', () => submitSwitch());
+switchCancel.addEventListener('click', () => closeSwitchSheet());
+
+switchSheet.addEventListener('click', (ev) => {
+    if (ev.target === switchSheet) closeSwitchSheet();
+});
+
+switchSheet.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !switchConfirm.disabled) {
+        ev.preventDefault();
+        submitSwitch();
+    }
 });
