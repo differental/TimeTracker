@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 use crate::constants::ACCESS_KEY;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct AuthQueryParams {
     key: Option<String>,
 }
@@ -34,6 +34,8 @@ pub async fn auth_user(
     next: Next,
 ) -> impl IntoResponse {
     // Authentication layer, checks query param against key
+
+    println!("{:?}", params);
 
     if let Some(ref val) = params.key
         && val.trim() == *ACCESS_KEY
