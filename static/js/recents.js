@@ -65,6 +65,7 @@ function buildRow(stateIdx, startMs, endMs, entryIdx) {
     const tr = document.createElement('tr');
 
     const stateTd = document.createElement('td');
+    stateTd.className = 'cell-activity';
     const stateDiv = document.createElement('span');
     stateDiv.className = 'cell-state';
     const dot = document.createElement('span');
@@ -77,12 +78,14 @@ function buildRow(stateIdx, startMs, endMs, entryIdx) {
     stateTd.appendChild(stateDiv);
 
     const startTd = document.createElement('td');
-    startTd.className = 'cell-time';
+    startTd.className = 'cell-time cell-start';
     startTd.textContent = formatRounded(startMs);
+    startTd.dataset.hm = clockHM(startMs);
 
     const endTd = document.createElement('td');
-    endTd.className = 'cell-time';
+    endTd.className = 'cell-time cell-end';
     endTd.textContent = formatRounded(endMs);
+    endTd.dataset.hm = clockHM(endMs);
 
     const durTd = document.createElement('td');
     durTd.className = 'cell-dur';

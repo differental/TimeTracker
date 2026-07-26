@@ -4,14 +4,4 @@
         <span>All times shown in your local timezone.</span>
     </div>
 </footer>
-<script>
-    // mobile nav toggle
-    const navToggle = document.getElementById('navToggle');
-    const mobileNav = document.getElementById('mobileNav');
-    navToggle?.addEventListener('click', () => {
-        const expanded = navToggle.getAttribute('aria-expanded') === 'true';
-        navToggle.setAttribute('aria-expanded', String(!expanded));
-        mobileNav.classList.toggle('hidden');
-    });
-</script>
 <script src="/static/js/utils.js"></script>
