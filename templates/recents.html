@@ -1,81 +1,99 @@
-{%- decl base_color -%}
-{%- if is_emergency -%}
-    {%- let base_color = "red" -%}
-{%- else -%}
-    {%- let base_color = "blue" -%}
-{%- endif -%}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="--state: {{ current_state.colour }}"{% if is_emergency %} data-emergency="true"{% endif %}>
 <head>
     <title>TimeTracker — Recents</title>
     {% include "header.html" %}
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+<body>
     {% include "navbar.html" %}
-    <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
-        <div class="mt-2 mb-4">
-            <h1 class="text-3xl md:text-2xl font-semibold">Recents</h1>
-            <p class="text-sm text-gray-600 mt-1">Showing a list of the most recent state changes.</p>
+    <main class="page shell">
+        <div class="page-head">
+            <div>
+                <h1 class="page-title">Recents</h1>
+                <p class="page-sub">Your most recent activity changes.</p>
+            </div>
         </div>
-        <div class="mb-6 bg-white shadow rounded-lg p-4">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div class="flex flex-col sm:flex-row gap-3 items-center">
-                    <div class="flex items-center gap-2">
-                        <label for="count-select" class="text-sm text-gray-600">Items</label>
-                        <select id="count-select" class="px-3 py-2 border border-gray-200 rounded">
-                            <option value="0">N/A</option>
-                            <option value="10">10</option>
-                            <option value="30">30</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                            <option value="custom">Custom…</option>
-                        </select>
-                        <input id="count-custom-input" type="number" min="1" step="1" value="10" class="w-20 px-3 py-2 border border-gray-200 rounded hidden" />
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <label for="days-select" class="text-sm text-gray-600">Days</label>
-                        <select id="days-select" class="px-3 py-2 border border-gray-200 rounded">
-                            <option value="0">N/A</option>
-                            <option value="1">1</option>
-                            <option value="7">7</option>
-                            <option value="30">30</option>
-                            <option value="custom">Custom…</option>
-                        </select>
-                        <input id="days-custom-input" type="number" min="1" step="1" value="1" class="w-20 px-3 py-2 border border-gray-200 rounded hidden" />
-                    </div>
-                    <div class="flex items-center">
-                        <button id="apply-filters" class="px-3 py-2 bg-white border border-gray-200 rounded shadow-sm text-sm">Apply</button>
-                    </div>
+
+        <p class="notice hidden" id="recents-error" role="alert"></p>
+
+        <section class="card ribbon-card">
+            <p class="eyebrow">Timeline</p>
+            <div class="ribbon" id="ribbon"></div>
+            <div class="ribbon-axis">
+                <span id="ribbon-from"></span>
+                <span id="ribbon-to"></span>
+            </div>
+        </section>
+
+        <section class="card filters">
+            <div class="filter">
+                <label for="count-select">Items</label>
+                <div class="filter-row">
+                    <select id="count-select" class="field">
+                        <option value="0">N/A</option>
+                        <option value="10">10</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="custom">Custom…</option>
+                    </select>
+                    <input id="count-custom-input" class="field hidden" type="number" min="1" step="1" value="10"
+                        aria-label="Custom item count" />
                 </div>
             </div>
-            <div class="mt-4 overflow-x-auto">
-                <table id="events-table" class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+            <div class="filter">
+                <label for="days-select">Days</label>
+                <div class="filter-row">
+                    <select id="days-select" class="field">
+                        <option value="0">N/A</option>
+                        <option value="1">1</option>
+                        <option value="7">7</option>
+                        <option value="30">30</option>
+                        <option value="custom">Custom…</option>
+                    </select>
+                    <input id="days-custom-input" class="field hidden" type="number" min="1" step="1" value="1"
+                        aria-label="Custom day count" />
+                </div>
+            </div>
+            <button type="button" id="apply-filters" class="btn btn-primary">Apply</button>
+        </section>
+
+        <section class="card table-card">
+            <div class="table-scroll">
+                <table id="events-table">
+                    <thead>
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Datetime</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Datetime</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"><span class="sr-only">Edit</span></th>
+                            <th>Activity</th>
+                            <th>Started</th>
+                            <th>Ended</th>
+                            <th>Duration</th>
+                            <th><span class="sr-only">Edit</span></th>
                         </tr>
                     </thead>
-                    <tbody id="events-tbody" class="bg-white divide-y divide-gray-100">
-                        <!-- populated by JS -->
-                    </tbody>
+                    <tbody id="events-tbody"></tbody>
                 </table>
             </div>
-        </div>
-        <div class="mt-6 text-right">
-            <a href="/?key={{ key }}" class="inline-block px-4 py-2 bg-{{ base_color }}-600 text-white rounded shadow hover:opacity-95">Back</a>
-        </div>
+        </section>
     </main>
+
+    <dialog id="edit-sheet" class="sheet" aria-labelledby="edit-title">
+        <div class="sheet-body">
+            <h2 class="sheet-title" id="edit-title">Edit start time</h2>
+            <p class="sheet-note">Move when <b id="edit-target"></b> began.</p>
+            <input id="edit-start-input" class="field" type="datetime-local" step="60">
+            <p class="sheet-error hidden" id="edit-error" role="alert"></p>
+            <div class="sheet-actions">
+                <button type="button" class="btn" id="edit-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="edit-save">Save</button>
+            </div>
+        </div>
+    </dialog>
+
     {% include "footer.html" %}
     <script>
         window.ENTRY_KEY = "{{ key }}";
-        window.BASE_COLOR = "{{ base_color }}";
         const STATES_DATA = [
-            {% for s in states %}["{{ s.name }}", "{{ s.colour }}"], {% endfor %}
+            {% for s in states %}["{{ s.name }}", "{{ s.colour }}", "{{ s.emoji }}"], {% endfor %}
         ];
 
         document.addEventListener('DOMContentLoaded', () => wireFilters());

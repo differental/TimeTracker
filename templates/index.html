@@ -1,54 +1,82 @@
-{%- decl base_color -%}
-{%- if is_emergency -%}
-    {%- let base_color = "red" -%}
-{%- else -%}
-    {%- let base_color = "blue" -%}
-{%- endif -%}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="--state: {{ current_state.colour }}"{% if is_emergency %} data-emergency="true"{% endif %}>
 <head>
     <title>TimeTracker — Current Activity</title>
     {% include "header.html" %}
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+<body>
+    <div class="aurora" aria-hidden="true">
+        <span class="b1"></span>
+        <span class="b2"></span>
+        <span class="b3"></span>
+    </div>
     {% include "navbar.html" %}
-    <main class="flex-grow container mx-auto max-w-5xl px-4 py-8">
-        <div class="mt-2 mb-4">
-            <h1 class="text-3xl md:text-2xl font-semibold">Current Activity</h1>
+    <main class="page shell">
+        <div class="page-head">
+            <h1 class="page-title">Now</h1>
+            <p class="page-sub">Your last 24 hours, midnight at the top.</p>
         </div>
-        <div class="bg-white shadow rounded-lg mb-6">
-            <div class="p-6 text-center flex flex-col items-center justify-center sm:min-h-0">
-                <h2 class="text-4xl md:text-3xl lg:text-4xl font-medium leading-tight" id="current-state">{{ current_state.emoji }} {{ current_state.name }}</h2>
-                <p id="elapsed" class="timer mt-4 text-6xl md:text-6xl lg:text-6xl font-semibold">-</p>
-            </div>
-        </div>
-        <div class="mb-8">
-            <div class="flex flex-col gap-4 lg:grid lg:grid-cols-3 lg:gap-4">
-                {% for s in states %}
-                <div class="bg-white shadow rounded-md p-0 flex items-stretch">
-                    <button type="button"
-                        class="change-state-btn w-full py-4 text-xl md:py-3 md:text-lg rounded-md border border-{{base_color}}-600 hover:bg-{{base_color}}-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-{{base_color}}-300 flex-1"
-                        value="{{ loop.index0 }}"
-                        aria-label="Change state to {{ s.name }}">
-                    {{ s.emoji }} {{ s.name }}
-                    </button>
+
+        <section class="card now">
+            <div class="dial-wrap">
+                <svg id="dial" class="dial" viewBox="0 0 200 200" role="img"
+                    aria-label="Radial chart of your activities over the last 24 hours"></svg>
+                <div class="now-face">
+                    <h2 class="now-state" id="current-state">{{ current_state.emoji }} {{ current_state.name }}</h2>
+                    <p class="now-elapsed tnum" id="elapsed">-</p>
+                    <span class="now-since" id="since"></span>
                 </div>
+            </div>
+            <ul class="dial-legend" id="dial-legend"></ul>
+        </section>
+
+        <section>
+            <p class="eyebrow">Switch to</p>
+            <div class="state-grid">
+                {% for s in states %}
+                <button type="button" class="change-state-btn rise"
+                    style="--swatch: {{ s.colour }}; --delay: {{ loop.index0 * 25 }}ms"
+                    value="{{ loop.index0 }}"
+                    {% if s.name == current_state.name %}aria-current="true"{% endif %}
+                    aria-label="Change state to {{ s.name }}">
+                    <span class="emoji" aria-hidden="true">{{ s.emoji }}</span>
+                    <span class="label">{{ s.name }}</span>
+                </button>
                 {% endfor %}
             </div>
-        </div>
+        </section>
     </main>
+
+    <dialog id="switch-sheet" class="sheet" aria-labelledby="switch-title">
+        <div class="sheet-body">
+            <h2 class="sheet-title" id="switch-title">Change activity</h2>
+            <p class="sheet-note">Switch to <b id="switch-target"></b>, starting when?</p>
+            <div class="sheet-row">
+                <input id="switch-start-input" class="field" type="datetime-local" step="60">
+                <button type="button" id="switch-now-btn" class="btn btn-now" aria-pressed="true">NOW</button>
+            </div>
+            <p class="sheet-error hidden" id="switch-error" role="alert"></p>
+            <div class="sheet-actions">
+                <button type="button" class="btn" id="switch-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="switch-confirm" autofocus>Change activity</button>
+            </div>
+        </div>
+    </dialog>
+
     {% include "footer.html" %}
     <script>
         window.ENTRY_KEY = "{{ key }}";
         const start = Date.now() - {{ elapsed_ms }};
-        const STATES_NAMES = [
-            {% for s in states %}"{{ s.name }}", {% endfor %}
+        const HAS_ENTRY = {{ elapsed_ms }} > 0;
+        const STATE_META = [
+            {% for s in states %}["{{ s.emoji }}", "{{ s.name }}", "{{ s.colour }}"], {% endfor %}
         ];
+        const STATES_NAMES = STATE_META.map(s => s[1]);
 
         setInterval(() => updateElapsed(), 1000);
         document.addEventListener('DOMContentLoaded', () => updateElapsed());
     </script>
+    <script src="/static/js/dial.js" defer></script>
     <script src="/static/js/index.js" defer></script>
 </body>
 </html>

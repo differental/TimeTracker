@@ -33,6 +33,28 @@ function formatRounded(ms) {
 
 const pad = n => n.toString().padStart(2,'0');
 
+function clockHM(ms) {
+    const d = new Date(Number(ms));
+    if (Number.isNaN(d.getTime())) return '--:--';
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function buildSegments(pairs, fromMs, toMs) {
+    if (!Array.isArray(pairs) || pairs.length === 0) return [];
+    const asc = pairs.slice().reverse();
+    const out = [];
+    for (let i = 0; i < asc.length; i++) {
+        const state = asc[i][0];
+        const rawStart = Number(asc[i][1]);
+        const rawEnd = (i + 1 < asc.length) ? Number(asc[i + 1][1]) : toMs;
+        if (!isValidMs(rawStart) || !isValidMs(rawEnd)) continue;
+        const s = Math.max(rawStart, fromMs);
+        const e = Math.min(rawEnd, toMs);
+        if (e > s) out.push({ state, start: s, end: e });
+    }
+    return out;
+}
+
 // Format a ms timestamp as a local `YYYY-MM-DDTHH:MM` string for a
 // `datetime-local` input value. Rounds to the minute to match formatRounded's
 // display granularity. Read back with `new Date(value).getTime()` (local).
