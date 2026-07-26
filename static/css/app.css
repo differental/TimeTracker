@@ -146,7 +146,7 @@ svg {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .sr-only {
@@ -639,6 +639,68 @@ svg {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
     gap: 0.6rem;
+}
+
+.suggest-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+
+.suggest-skel {
+    min-height: 3.5rem;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-ctl);
+    background: var(--surface-2);
+    opacity: 0.55;
+}
+
+.all-activities-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 2.4rem;
+    padding: 0.4rem 0.85rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--r-ctl);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+        background-color var(--dur-fast) var(--ease);
+}
+
+.all-activities-btn:hover {
+    color: var(--text);
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+    background: var(--surface-2);
+}
+
+.all-activities-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.all-activities-btn .chev {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+    transition: transform var(--dur-fast) var(--ease);
+}
+
+.all-activities-btn[aria-expanded="true"] .chev {
+    transform: rotate(180deg);
+}
+
+#all-activities-panel {
+    margin-top: 0.6rem;
 }
 
 .change-state-btn {

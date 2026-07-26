@@ -32,7 +32,32 @@
 
         <section>
             <p class="eyebrow">Switch to</p>
-            <div class="state-grid">
+            <noscript>
+                <style>
+                    #suggest-list,
+                    #all-activities-btn {
+                        display: none !important;
+                    }
+
+                    #all-activities-panel {
+                        display: grid !important;
+                    }
+                </style>
+            </noscript>
+            <div class="suggest-list" id="suggest-list" aria-busy="true">
+                <span class="suggest-skel"></span>
+                <span class="suggest-skel"></span>
+                <span class="suggest-skel"></span>
+            </div>
+            <button type="button" class="all-activities-btn" id="all-activities-btn"
+                aria-expanded="false" aria-controls="all-activities-panel">
+                <span>All activities</span>
+                <svg class="chev" viewBox="0 0 12 8" aria-hidden="true">
+                    <path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor"
+                        stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </button>
+            <div class="state-grid hidden" id="all-activities-panel">
                 {% for s in states %}
                 <button type="button" class="change-state-btn rise"
                     style="--swatch: {{ s.colour }}; --delay: {{ loop.index0 * 25 }}ms"
@@ -78,5 +103,6 @@
     </script>
     <script src="/static/js/dial.js" defer></script>
     <script src="/static/js/index.js" defer></script>
+    <script src="/static/js/suggest.js" defer></script>
 </body>
 </html>
