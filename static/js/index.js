@@ -115,7 +115,7 @@ document.querySelectorAll('.change-state-btn').forEach(btn => {
         clearSwitchError();
         setSwitchBusy(false, 'Change activity');
         switchSheet.showModal();
-        switchConfirm.focus();
+        document.getElementById('switch-title').focus();
         setUseNow(true);
     });
 });

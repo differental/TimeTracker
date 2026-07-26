@@ -74,7 +74,7 @@
 
     <dialog id="switch-sheet" class="sheet" aria-labelledby="switch-title">
         <div class="sheet-body">
-            <h2 class="sheet-title" id="switch-title">Change activity</h2>
+            <h2 class="sheet-title" id="switch-title" tabindex="-1" autofocus>Change activity</h2>
             <p class="sheet-note">Switch to <b id="switch-target"></b>, starting when?</p>
             <div class="sheet-row">
                 <input id="switch-start-input" class="field" type="datetime-local" step="60">
@@ -83,7 +83,7 @@
             <p class="sheet-error hidden" id="switch-error" role="alert"></p>
             <div class="sheet-actions">
                 <button type="button" class="btn" id="switch-cancel">Cancel</button>
-                <button type="button" class="btn btn-primary" id="switch-confirm" autofocus>Change activity</button>
+                <button type="button" class="btn btn-primary" id="switch-confirm">Change activity</button>
             </div>
         </div>
     </dialog>

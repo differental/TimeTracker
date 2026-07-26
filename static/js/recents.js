@@ -139,7 +139,7 @@ function openEditDialog(entryIdx, startMs, name) {
     clearEditError();
     setEditBusy(false, 'Save');
     sheet.showModal();
-    input.focus();
+    document.getElementById('edit-title').focus();
 }
 
 function setEditBusy(busy, label) {

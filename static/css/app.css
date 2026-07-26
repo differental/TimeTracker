@@ -786,6 +786,10 @@ svg {
     font-size: 1.15rem;
 }
 
+.sheet-title:focus {
+    outline: none;
+}
+
 .sheet-note {
     color: var(--text-dim);
     font-size: 0.88rem;
