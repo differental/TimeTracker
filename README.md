@@ -4,9 +4,9 @@ Personal time tracker with a simple UI.
 
 This was initially designed for personal use only, but it was fairly easy to expose most of the configuration options, so now you can also have your own time tracker and analyse your time!
 
-The backend is designed with privacy in mind. API clients should send
-`Authorization: Bearer <ACCESS_KEY>`; the existing `?key=` URL parameter remains
-supported for the web UI and older clients.
+The backend is designed with privacy in mind. Every request authenticates with
+the `?key=<ACCESS_KEY>` URL parameter, used by both the web UI and the native
+iOS client.
 
 ## Getting Started
 
@@ -16,8 +16,8 @@ Prerequisites: `cargo`
 
 After cloning the repo, copy `.env.example` to `.env` and modify the contents:
 
-- `ACCESS_KEY` authenticates every request. Use it as `?key=` in the browser or
-  as a Bearer token from an API client.
+- `ACCESS_KEY` authenticates every request, passed as `?key=` in the browser and
+  by API clients.
 - `DB_PATH` is the path to your `sled` database folder.
 - `ADDR` is where your app will run. You should probably set it to `0.0.0.0:{PORT}` where `{PORT}` is a vacant port on your server.
 
@@ -44,8 +44,7 @@ scheme. On first launch, enter the server base URL and `ACCESS_KEY` in Settings.
 Platform integrations include:
 
 - Home Screen, Lock Screen, StandBy, and paired Apple Watch widgets with
-  interactive activity switching, relevance hints, a shared offline snapshot,
-  and optional WidgetKit push updates
+  interactive activity switching, relevance hints, and a shared offline snapshot
 - a configurable Control Center quick switch
 - App Intents backed by searchable `AppEntity` activities, Spotlight indexing,
   Shortcuts phrases, a current-activity snippet, and Focus filters
@@ -65,31 +64,28 @@ For both the app and widget extension, select your development team and enable:
 
 - App Groups: `group.at.janez.TimeTracker`
 - Keychain Sharing: `$(AppIdentifierPrefix)at.janez.TimeTracker.shared`
-- Push Notifications
 - Live Activities
 
-The included entitlements select APNs development or production through the
-`APS_ENVIRONMENT` build setting. AlarmKit and Calendar usage descriptions are
-already present in the app's `Info.plist`; users are prompted only when they
-choose those features.
+Push Notifications are **not** required. The app assumes the phone is the only
+client that changes state, so widgets and Live Activities update in-process:
+Live Activities through a local `Activity.update`, widgets through their refresh
+timeline plus an immediate reload after every change made on the device. No APNs
+key, no push entitlement, and no paid Apple Developer Program team is needed —
+the app signs with a Personal Team.
 
-### Optional APNs updates
+AlarmKit and Calendar usage descriptions are already present in the app's
+`Info.plist`; users are prompted only when they choose those features.
 
-Widget and Live Activity updates work locally without APNs. To let the backend
-refresh them immediately after a state change, create an Apple Push Notification
-authentication key and set:
+### Server compatibility
 
-```dotenv
-APNS_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8
-APNS_KEY_ID=XXXXXXXXXX
-APNS_TEAM_ID=XXXXXXXXXX
-APNS_TOPIC_PREFIX=at.janez.TimeTracker
-```
+The iOS client talks to an unmodified TimeTracker server and needs no
+server-side changes. Any existing deployment works as-is — enter its base URL
+and `ACCESS_KEY` in Settings.
 
-Mount the `.p8` file as a deployment secret and never commit it. If these
-variables are absent, the server safely skips remote push delivery. Device
-tokens are registered through authenticated endpoints and removed when APNs
-reports that they are no longer valid.
+If you edit state from somewhere other than the phone (the web UI on another
+device, or the API directly), the app will not learn about it until its next
+refresh. Making that instant would require server-driven APNs push, which this
+build deliberately does not include.
 
 ### Verification
 
@@ -103,6 +99,7 @@ xcodebuild -project TimeTracker/TimeTracker.xcodeproj \
 
 The UI tests use a real disposable backend. Set `TT_UITEST_SERVER_URL` and
 `TT_UITEST_ACCESS_KEY` to enable the switch-flow and accessibility-audit tests.
+The predictor backtest skips unless its lifelog fixture is present locally.
 
 ## Why `sled`?
 
