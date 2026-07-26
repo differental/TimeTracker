@@ -54,7 +54,6 @@ enum LiveActivityController {
 
         if let primary = activities.first {
             await primary.update(content)
-            observePushTokens(for: primary)
             for duplicate in activities.dropFirst() {
                 await duplicate.end(nil, dismissalPolicy: .immediate)
             }
@@ -66,14 +65,12 @@ enum LiveActivityController {
         else { return }
 
         do {
+            // No pushType: this device is the only writer, so every state
+            // change already runs through `reconcile` in-process.
             _ = try Activity.request(
                 attributes: TrackerActivityAttributes(),
-                content: content,
-                pushType: .token
+                content: content
             )
-            if let activity = Activity<TrackerActivityAttributes>.activities.first {
-                observePushTokens(for: activity)
-            }
         } catch {
             logger.error(
                 "Live Activity request failed: \(error.localizedDescription, privacy: .public)"
@@ -85,38 +82,5 @@ enum LiveActivityController {
         for activity in Activity<TrackerActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
-    }
-
-    private static var observedActivityIDs = Set<String>()
-
-    private static func observePushTokens(
-        for activity: Activity<TrackerActivityAttributes>
-    ) {
-        guard observedActivityIDs.insert(activity.id).inserted else { return }
-        Task {
-            for await token in activity.pushTokenUpdates {
-                guard let config = ServerConfig.load() else { continue }
-                do {
-                    try await APIClient(config: config).registerLiveActivityPushToken(
-                        token,
-                        activityID: activity.id,
-                        topic: "at.janez.TimeTracker.push-type.liveactivity",
-                        environment: pushEnvironment
-                    )
-                } catch {
-                    logger.error(
-                        "Live Activity push registration failed: \(error.localizedDescription, privacy: .public)"
-                    )
-                }
-            }
-        }
-    }
-
-    private static var pushEnvironment: String {
-        #if DEBUG
-        "sandbox"
-        #else
-        "production"
-        #endif
     }
 }

@@ -15,7 +15,7 @@
 
 use axum::{
     extract::{Query, Request},
-    http::{StatusCode, header::AUTHORIZATION},
+    http::StatusCode,
     middleware::Next,
     response::IntoResponse,
 };
@@ -33,17 +33,11 @@ pub async fn auth_user(
     request: Request,
     next: Next,
 ) -> impl IntoResponse {
-    let bearer = request
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .map(str::trim);
-    let query_key = params.key.as_deref().map(str::trim);
+    // Authentication layer, checks query param against key
 
-    // Keep query authentication for the existing web client, while native
-    // clients use the Authorization header so credentials don't appear in URLs.
-    if bearer == Some(ACCESS_KEY.as_str()) || query_key == Some(ACCESS_KEY.as_str()) {
+    if let Some(ref val) = params.key
+        && val.trim() == *ACCESS_KEY
+    {
         return next.run(request).await;
     }
 

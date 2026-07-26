@@ -353,38 +353,6 @@ struct CurrentActivityWidgetView: View {
     }
 }
 
-struct TimeTrackerWidgetPushHandler: WidgetPushHandler {
-    nonisolated init() {}
-
-    nonisolated func pushTokenDidChange(
-        _ pushInfo: WidgetPushInfo,
-        widgets: [WidgetInfo]
-    ) {
-        guard widgets.contains(where: { $0.kind == CurrentActivityWidget.kind }) else {
-            return
-        }
-        Task { @MainActor in
-            guard let config = ServerConfig.load() else { return }
-            let bundleID = Bundle.main.bundleIdentifier
-                ?? "at.janez.TimeTracker.Widgets"
-            try? await APIClient(config: config).registerWidgetPushToken(
-                pushInfo.token,
-                topic: "\(bundleID).push-type.widgets",
-                environment: pushEnvironment
-            )
-        }
-    }
-
-    @MainActor
-    private var pushEnvironment: String {
-        #if DEBUG
-        "sandbox"
-        #else
-        "production"
-        #endif
-    }
-}
-
 struct CurrentActivityWidget: Widget {
     nonisolated static let kind = "at.janez.TimeTracker.current"
 
@@ -404,6 +372,5 @@ struct CurrentActivityWidget: Widget {
             .accessoryRectangular,
             .accessoryInline,
         ])
-        .pushHandler(TimeTrackerWidgetPushHandler.self)
     }
 }

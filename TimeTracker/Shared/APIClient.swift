@@ -113,7 +113,15 @@ struct APIClient: Sendable {
             url: config.baseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: false
         ) else { throw APIError.badURL }
-        components.queryItems = query.isEmpty ? nil : query
+
+        // The server authenticates on the `key` query parameter, so it has to
+        // survive alongside anything the user already put in the server URL.
+        var items = components.queryItems ?? []
+        items.append(contentsOf: query)
+        items.removeAll { $0.name == "key" }
+        items.append(URLQueryItem(name: "key", value: config.accessKey))
+
+        components.queryItems = items
         guard let url = components.url else { throw APIError.badURL }
         return url
     }
@@ -127,10 +135,6 @@ struct APIClient: Sendable {
         var request = URLRequest(url: try url(path, query: query))
         request.httpMethod = method
         request.timeoutInterval = 15
-        request.setValue(
-            "Bearer \(config.accessKey)",
-            forHTTPHeaderField: "Authorization"
-        )
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -161,15 +165,6 @@ struct APIClient: Sendable {
         let new_state: Int
         let start_timestamp: Int64
     }
-
-    struct PushRegistrationPayload: Encodable {
-        var token: String
-        var topic: String
-        var environment: String
-        var activity_id: String?
-    }
-
-    struct EmptyResponse: Decodable {}
 
     func addEntry(stateID: Int, startTimestamp: Int64, force: Bool) async throws -> EntryResponse {
         try await send(
@@ -205,46 +200,5 @@ struct APIClient: Sendable {
             .init(name: "count", value: String(count)),
             .init(name: "days", value: String(days)),
         ])
-    }
-
-    func registerWidgetPushToken(
-        _ token: Data,
-        topic: String,
-        environment: String
-    ) async throws {
-        let _: EmptyResponse = try await send(
-            "api/push/widgets",
-            method: "POST",
-            body: PushRegistrationPayload(
-                token: token.hexString,
-                topic: topic,
-                environment: environment,
-                activity_id: nil
-            )
-        )
-    }
-
-    func registerLiveActivityPushToken(
-        _ token: Data,
-        activityID: String,
-        topic: String,
-        environment: String
-    ) async throws {
-        let _: EmptyResponse = try await send(
-            "api/push/live-activities",
-            method: "POST",
-            body: PushRegistrationPayload(
-                token: token.hexString,
-                topic: topic,
-                environment: environment,
-                activity_id: activityID
-            )
-        )
-    }
-}
-
-extension Data {
-    nonisolated var hexString: String {
-        map { String(format: "%02x", $0) }.joined()
     }
 }

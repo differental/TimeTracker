@@ -27,7 +27,6 @@ use sled::IVec;
 
 use crate::{
     constants::{AppState, STATE_COUNT},
-    push::notify_state_change,
     utils::{
         get_length, incr_length, is_reasonable_timestamp, is_valid_timestamp, log_corrupt_entry,
         read_from_value, to_ivec,
@@ -145,7 +144,6 @@ pub async fn add_entry(
         new_state,
         start_timestamp,
     };
-    notify_state_change(state, new_state, start_timestamp);
 
     (StatusCode::OK, Json(response)).into_response()
 }
@@ -278,7 +276,6 @@ pub async fn update_entry(
         new_state,
         start_timestamp,
     };
-    notify_state_change(state, new_state, start_timestamp);
 
     (StatusCode::OK, Json(response)).into_response()
 }
