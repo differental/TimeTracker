@@ -14,42 +14,43 @@ struct NowView: View {
             ZStack {
                 AuroraBackground(tint: model.current?.state.color ?? .gray)
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        hero
-                            .padding(.horizontal)
+                GeometryReader { proxy in
+                    let layout = NowLayoutMetrics(size: proxy.size)
 
-                        if let error = actionError ?? model.lastError {
-                            errorBanner(error)
-                                .padding(.horizontal)
+                    Group {
+                        if layout.usesSideBySideLayout {
+                            HStack(spacing: layout.sectionSpacing) {
+                                hero(
+                                    height: layout.heroHeight,
+                                    compact: true
+                                )
+
+                                controls(layout: layout)
+                            }
+                        } else {
+                            VStack(spacing: layout.sectionSpacing) {
+                                hero(
+                                    height: layout.heroHeight,
+                                    compact: layout.isCompact
+                                )
+
+                                controls(layout: layout)
+                            }
                         }
-
-                        Button {
-                            showFocusSession = true
-                        } label: {
-                            Label("Start Focus Session", systemImage: "timer.circle")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 54)
-                        }
-                        .buttonStyle(.plain)
-                        .glassEffect(
-                            .regular.interactive(),
-                            in: RoundedRectangle(cornerRadius: 18)
-                        )
-                        .padding(.horizontal)
-
-                        predictedActions
-                            .padding(.horizontal)
                     }
-                    .padding(.vertical)
-                    .padding(.bottom, 90)
+                    .padding(.horizontal, layout.edgeInset)
+                    .padding(.vertical, layout.edgeInset)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .top
+                    )
                 }
-                .scrollIndicators(.hidden)
-                .refreshable { await model.refresh() }
             }
             .navigationTitle("TimeTracker")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Settings", systemImage: "gearshape") {
@@ -74,75 +75,167 @@ struct NowView: View {
         }
     }
 
-    private var hero: some View {
+    private func controls(layout: NowLayoutMetrics) -> some View {
+        VStack(spacing: layout.sectionSpacing) {
+            if let error = actionError ?? model.lastError {
+                errorBanner(error)
+            }
+
+            Button {
+                showFocusSession = true
+            } label: {
+                Label("Start Focus Session", systemImage: "timer")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: layout.focusButtonHeight)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(
+                .regular.interactive(),
+                in: RoundedRectangle(cornerRadius: layout.cornerRadius)
+            )
+
+            predictedActions(layout: layout)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func hero(height: CGFloat, compact: Bool) -> some View {
         let current = model.current
         let state = current?.state
 
-        return VStack(spacing: 12) {
+        return VStack(spacing: compact ? 5 : 9) {
             Spacer(minLength: 0)
             if let state {
-                Label(state.name, systemImage: state.symbolName)
-                    .font(.system(.title, design: .rounded, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.white)
-                    .contentTransition(.opacity)
-                    .accessibilityLabel(state.name)
-                    .accessibilityIdentifier("currentActivityName")
+                HStack(spacing: compact ? 8 : 10) {
+                    Image(systemName: state.symbolName)
+                        .font(.system(size: compact ? 12 : 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(
+                            width: compact ? 26 : 30,
+                            height: compact ? 26 : 30
+                        )
+                        .background(state.color.gradient, in: Circle())
+                        .shadow(color: state.color.opacity(0.45), radius: 7, y: 2)
+                    Text(state.name)
+                        .font(
+                            .system(
+                                compact ? .headline : .title3,
+                                design: .rounded,
+                                weight: .semibold
+                            )
+                        )
+                        .foregroundStyle(.white)
+                }
+                .contentTransition(.opacity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(state.name)
+                .accessibilityIdentifier("currentActivityName")
 
-                ElapsedTimer(since: current?.startDate ?? .now)
+                ElapsedTimer(
+                    since: current?.startDate ?? .now,
+                    compact: compact
+                )
 
-                Text("since \(current?.startDate.formatted(date: .abbreviated, time: .shortened) ?? "")")
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.75))
+                Text(sinceText(for: current?.startDate ?? .now))
+                    .font((compact ? Font.caption2 : .caption).weight(.medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, compact ? 3 : 4)
+                    .background(.white.opacity(0.12), in: Capsule())
             } else {
                 Image(systemName: "timer")
-                    .font(.system(size: 34, weight: .semibold))
+                    .font(.system(size: compact ? 24 : 30, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.white)
                 Text("Nothing tracked yet")
-                    .font(.system(.title2, design: .rounded, weight: .semibold))
+                    .font(
+                        .system(
+                            compact ? .headline : .title3,
+                            design: .rounded,
+                            weight: .semibold
+                        )
+                    )
                     .foregroundStyle(.white)
                 Text(model.isConfigured
                      ? "Pick an activity below to start."
                      : "Connect to your server in Settings.")
-                    .font(.footnote)
+                    .font(compact ? .caption2 : .caption)
                     .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             Spacer(minLength: 0)
         }
-        .padding(28)
+        .padding(.horizontal, compact ? 16 : 20)
+        .padding(.vertical, compact ? 10 : 14)
         .frame(maxWidth: .infinity)
-        .frame(height: 240)
-        .background(.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 28))
+        .frame(height: height)
+        .background(
+            .black.opacity(0.22),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
         .overlay {
-            RoundedRectangle(cornerRadius: 28)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.28), .white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
         }
         .animation(.smooth, value: model.current?.stateID)
     }
 
-    private var predictedActions: some View {
-        GlassEffectContainer(spacing: 12) {
-            VStack(spacing: 12) {
+    private func sinceText(for date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            return "since \(date.formatted(date: .omitted, time: .shortened))"
+        }
+        return "since \(date.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    private func predictedActions(layout: NowLayoutMetrics) -> some View {
+        GlassEffectContainer(spacing: layout.controlSpacing) {
+            VStack(spacing: layout.controlSpacing) {
+                if !layout.isCompact {
+                    Text("SUGGESTED")
+                        .font(.caption2.weight(.semibold))
+                        .kerning(1.4)
+                        .foregroundStyle(.white.opacity(0.55))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 6)
+                        .padding(.top, 2)
+                        .accessibilityHidden(true)
+                }
+
                 ForEach(Array(model.predictedStates.enumerated()), id: \.element.id) {
                     index,
                     state in
-                    predictedButton(state, slot: index)
+                    predictedButton(state, slot: index, layout: layout)
                 }
 
                 Button {
                     showAllActivities = true
                 } label: {
-                    Label("More", systemImage: "ellipsis")
-                        .font(.headline)
+                    Label("All activities", systemImage: "square.grid.2x2")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.9))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
+                        .frame(height: layout.moreButtonHeight)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .glassEffect(
                     .regular.interactive(),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    in: RoundedRectangle(
+                        cornerRadius: layout.cornerRadius,
+                        style: .continuous
+                    )
                 )
                 .disabled(switchingStateID != nil)
                 .accessibilityIdentifier("moreActivities")
@@ -150,39 +243,63 @@ struct NowView: View {
         }
     }
 
-    private func predictedButton(_ state: TrackerState, slot: Int) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+    private func predictedButton(
+        _ state: TrackerState,
+        slot: Int,
+        layout: NowLayoutMetrics
+    ) -> some View {
+        let shape = RoundedRectangle(
+            cornerRadius: layout.cornerRadius,
+            style: .continuous
+        )
+
+        let badgeSize: CGFloat = layout.isCompact ? 30 : 36
 
         return Button {
             switchActivity(to: state, dismissMoreOnSuccess: false)
         } label: {
-            HStack(spacing: 14) {
-                Image(systemName: state.symbolName)
-                    .font(.system(size: 28, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
+            HStack(spacing: layout.isCompact ? 10 : 12) {
+                ZStack {
+                    Circle()
+                        .fill(state.color.gradient)
+                    if switchingStateID == state.id {
+                        ProgressView()
+                            .tint(.white)
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: state.symbolName)
+                            .font(
+                                .system(
+                                    size: layout.isCompact ? 13 : 15,
+                                    weight: .semibold
+                                )
+                            )
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: badgeSize, height: badgeSize)
+                .shadow(color: state.color.opacity(0.35), radius: 5, y: 2)
                 Text(state.name)
-                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .font(
+                        .system(
+                            layout.isCompact ? .body : .headline,
+                            design: .rounded,
+                            weight: .semibold
+                        )
+                    )
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
-                if switchingStateID == state.id {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Image(systemName: "arrow.right")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, layout.isCompact ? 12 : 14)
             .frame(maxWidth: .infinity)
-            .frame(height: 78)
+            .frame(height: layout.activityButtonHeight)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .glassEffect(
-            .regular.tint(state.color.opacity(0.13)).interactive(),
+            .regular.tint(state.color.opacity(0.2)).interactive(),
             in: shape
         )
         .disabled(switchingStateID != nil)
@@ -298,6 +415,56 @@ struct NowView: View {
     }
 }
 
+private struct NowLayoutMetrics {
+    let size: CGSize
+
+    var usesSideBySideLayout: Bool {
+        size.width > size.height && size.width >= 640
+    }
+
+    var isCompact: Bool {
+        usesSideBySideLayout || size.height < 600
+    }
+
+    var edgeInset: CGFloat {
+        isCompact ? 10 : 16
+    }
+
+    var sectionSpacing: CGFloat {
+        isCompact ? 8 : 14
+    }
+
+    var controlSpacing: CGFloat {
+        isCompact ? 6 : 10
+    }
+
+    var cornerRadius: CGFloat {
+        isCompact ? 15 : 18
+    }
+
+    var heroHeight: CGFloat {
+        if usesSideBySideLayout {
+            return max(150, size.height - edgeInset * 2)
+        }
+        if isCompact {
+            return min(128, max(110, size.height * 0.25))
+        }
+        return min(216, max(150, size.height * 0.30))
+    }
+
+    var focusButtonHeight: CGFloat {
+        isCompact ? 42 : 48
+    }
+
+    var activityButtonHeight: CGFloat {
+        isCompact ? 44 : 56
+    }
+
+    var moreButtonHeight: CGFloat {
+        isCompact ? 40 : 46
+    }
+}
+
 private struct FocusSessionSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -403,11 +570,14 @@ private struct AuroraBackground: View {
     }
 
     private var staticBackground: some View {
-        LinearGradient(
-            colors: [tint.opacity(0.55), tint.opacity(0.18), .black.opacity(0.5)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        ZStack {
+            Color(red: 0.016, green: 0.02, blue: 0.048)
+            LinearGradient(
+                colors: [tint.opacity(0.6), tint.opacity(0.15), .clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
     }
 
     private func renderedBackground(at date: Date) -> some View {
@@ -436,13 +606,20 @@ private struct AuroraBackground: View {
 
 struct ElapsedTimer: View {
     let since: Date
-    @ScaledMetric(relativeTo: .largeTitle) private var fontSize = 56.0
+    let compact: Bool
+    @ScaledMetric(relativeTo: .largeTitle) private var fontSize = 48.0
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let elapsed = timeline.date.timeIntervalSince(since)
             Text(formatDuration(elapsed))
-                .font(.system(size: fontSize, weight: .bold, design: .rounded))
+                .font(
+                    .system(
+                        size: compact ? fontSize * 0.82 : fontSize,
+                        weight: .bold,
+                        design: .rounded
+                    )
+                )
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())

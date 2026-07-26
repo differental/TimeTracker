@@ -6,6 +6,14 @@ struct ContentView: View {
     @State private var showSettings = false
     @AppStorage("selectedTab") private var selectedTab = 0
 
+    init() {
+        #if DEBUG
+        if let tab = ProcessInfo.processInfo.environment["TT_TAB"].flatMap(Int.init) {
+            UserDefaults.standard.set(tab, forKey: "selectedTab")
+        }
+        #endif
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("Now", systemImage: "timer", value: 0) {

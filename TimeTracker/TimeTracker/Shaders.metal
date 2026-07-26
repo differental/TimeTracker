@@ -53,12 +53,17 @@ static float fbm(float2 p) {
     float glow = fbm(uv * 2.2 + r * 1.8);
 
     float3 tint3 = float3(tint.rgb);
-    float3 deep = tint3 * 0.16 + float3(0.02, 0.02, 0.05);
-    float3 mid = tint3 * 0.55;
-    float3 hot = min(tint3 * 1.25 + 0.18, 1.0);
+    // Shadows keep the tint's hue (tint² stays saturated when dark) over a
+    // cool ink base, so warm activity colours read as atmosphere, not mud.
+    float3 ink = float3(0.016, 0.020, 0.048);
+    float3 deep = mix(ink, tint3 * tint3, 0.24);
+    float3 veil = mix(tint3, float3(0.30, 0.38, 0.92), 0.45) * 0.40;
+    float3 mid = tint3 * 0.62;
+    float3 hot = min(tint3 * 1.3 + 0.2, 1.0);
 
-    float3 result = mix(deep, mid, smoothstep(0.25, 0.75, glow));
-    result = mix(result, hot, smoothstep(0.72, 0.98, glow) * 0.8);
+    float3 result = mix(deep, veil, smoothstep(0.18, 0.55, glow));
+    result = mix(result, mid, smoothstep(0.45, 0.82, glow));
+    result = mix(result, hot, smoothstep(0.74, 0.98, glow) * 0.75);
     result *= mix(1.0, 0.55, smoothstep(0.15, 1.0, uv.y));
     result += (hash21(position + time) - 0.5) * 0.015;
 

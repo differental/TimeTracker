@@ -41,6 +41,7 @@ struct InsightsView: View {
                 }
                 .padding()
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Insights")
             .refreshable { await model.refresh() }
             .onChange(of: model.summaryDays) {
@@ -65,14 +66,22 @@ struct InsightsView: View {
         .pickerStyle(.segmented)
     }
 
+    private var rangeCaption: String {
+        switch model.summaryDays {
+        case 1: "today"
+        case 7: "past 7 days"
+        default: "past \(model.summaryDays) days"
+        }
+    }
+
     private var donut: some View {
         Chart(shares) { share in
             SectorMark(
                 angle: .value("Time", share.duration),
-                innerRadius: .ratio(0.62),
-                angularInset: 1.5
+                innerRadius: .ratio(0.72),
+                angularInset: 1.8
             )
-            .cornerRadius(5)
+            .cornerRadius(4)
             .foregroundStyle(share.state.color)
             .opacity(selectedShare == nil || selectedShare?.id == share.id ? 1 : 0.35)
             .accessibilityLabel(share.state.name)
@@ -110,6 +119,9 @@ struct InsightsView: View {
                         Text(formatDuration(focus?.duration ?? model.totalTracked, compact: true))
                             .font(.system(.title, design: .rounded, weight: .bold))
                             .contentTransition(.numericText())
+                        Text(rangeCaption)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                     .position(x: frame.midX, y: frame.midY)
                 }
@@ -175,10 +187,19 @@ struct InsightsView: View {
                         }
                     }
                     .padding(12)
-                    .contentShape(RoundedRectangle(cornerRadius: 14))
+                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+                .overlay {
+                    if selectedShare?.id == share.id {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(share.state.color.opacity(0.5), lineWidth: 1.5)
+                    }
+                }
             }
         }
     }

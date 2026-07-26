@@ -16,9 +16,16 @@ struct HistoryView: View {
                 } else {
                     List {
                         ForEach(groupedByDay, id: \.day) { group in
-                            Section(group.day.formatted(date: .abbreviated, time: .omitted)) {
+                            Section {
                                 ForEach(group.entries) { entry in
                                     row(entry)
+                                }
+                            } header: {
+                                HStack {
+                                    Text(dayTitle(group.day))
+                                    Spacer()
+                                    Text(formatDuration(dayTotal(group.entries), compact: true))
+                                        .monospacedDigit()
                                 }
                             }
                         }
@@ -32,6 +39,18 @@ struct HistoryView: View {
                 EditEntrySheet(entry: entry)
                     .presentationDetents([.medium, .large])
             }
+        }
+    }
+
+    private func dayTitle(_ day: Date) -> String {
+        if Calendar.current.isDateInToday(day) { return "Today" }
+        if Calendar.current.isDateInYesterday(day) { return "Yesterday" }
+        return day.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    private func dayTotal(_ entries: [EntryRecord]) -> TimeInterval {
+        entries.reduce(0) { total, entry in
+            total + (entry.duration ?? Date.now.timeIntervalSince(entry.startDate))
         }
     }
 
@@ -74,7 +93,7 @@ struct HistoryView: View {
                     Text(formatDuration(duration, compact: true))
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 } else {
                     Text("ongoing")
                         .font(.caption)

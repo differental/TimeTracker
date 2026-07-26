@@ -127,22 +127,28 @@ struct AIDigestCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("Ask your time", systemImage: "sparkles")
-                    .font(.system(.headline, design: .rounded, weight: .semibold))
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        LinearGradient(
+                            colors: [.purple, .indigo],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: Circle()
+                    )
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Ask your time")
+                        .font(.system(.headline, design: .rounded, weight: .semibold))
+                    Text(modelAvailable ? "Apple Intelligence · On device" : "Local analysis")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Text(modelAvailable ? "Apple Intelligence · On device" : "Local analysis")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
-
-            Text(
-                modelAvailable
-                    ? "Answers are AI-generated from exact calculations and may need verification."
-                    : "Apple Intelligence is unavailable; you can still generate a deterministic digest."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
 
             if let digest {
                 VStack(alignment: .leading, spacing: 6) {
@@ -157,28 +163,65 @@ struct AIDigestCard: View {
                     Task { await generateDigest() }
                 } label: {
                     Label("Generate digest", systemImage: "text.sparkle")
+                        .font(.subheadline.weight(.medium))
                 }
                 .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .tint(.indigo)
                 .disabled(isThinking)
             }
 
-            Divider()
-
-            TextField("Ask about your tracked time", text: $question, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
+            HStack(spacing: 8) {
+                TextField(
+                    "Ask about your tracked time",
+                    text: $question,
+                    axis: .vertical
+                )
+                .textFieldStyle(.plain)
                 .lineLimit(1...3)
                 .submitLabel(.send)
                 .onSubmit { ask() }
 
+                Button {
+                    ask()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(
+                            question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? AnyShapeStyle(.tertiary)
+                                : AnyShapeStyle(.indigo)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(
+                    question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || isThinking
+                )
+                .accessibilityLabel("Send question")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Color(.tertiarySystemFill),
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(suggestions, id: \.self) { suggestion in
-                        Button(suggestion) {
+                        Button {
                             question = suggestion
                             ask()
+                        } label: {
+                            Text(suggestion)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .background(Color(.tertiarySystemFill), in: Capsule())
+                                .foregroundStyle(.primary)
                         }
-                        .buttonStyle(.bordered)
-                        .font(.caption)
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -203,10 +246,21 @@ struct AIDigestCard: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+
+            Text(
+                modelAvailable
+                    ? "Answers are AI-generated from exact calculations and may need verification."
+                    : "Apple Intelligence is unavailable; digests use local analysis."
+            )
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
         .onChange(of: taskKey) {
             digest = nil
             answer = nil

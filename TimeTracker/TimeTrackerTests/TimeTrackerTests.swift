@@ -3,6 +3,22 @@ import Testing
 @testable import TimeTracker
 
 struct TimeTrackerTests {
+    private struct WorldMMFixture: Decodable {
+        let participants: [Participant]
+
+        struct Participant: Decodable {
+            let id: String
+            let entries: [FixtureEntry]
+        }
+
+        struct FixtureEntry: Decodable {
+            let index: UInt64
+            let stateID: Int
+            let startTimestamp: Int64
+            let endTimestamp: Int64?
+        }
+    }
+
     @Test func durationFormatting() {
         #expect(formatDuration(3_900) == "01:05:00")
         #expect(formatDuration(3_900, compact: true) == "1h 5m")
@@ -171,6 +187,48 @@ struct TimeTrackerTests {
         #expect(result.firstChoiceCorrect > result.evaluatedTransitions / 2)
         #expect(result.topThreeCorrect >= result.firstChoiceCorrect)
         #expect(result.windowSize == 25)
+    }
+
+    @Test func predictorBacktestsWorldMMEgoLifeFixtureWhenAvailable() throws {
+        guard let path = ProcessInfo.processInfo.environment[
+            "WORLDMM_EGOLIFE_FIXTURE"
+        ] else {
+            return
+        }
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let fixture = try JSONDecoder().decode(WorldMMFixture.self, from: data)
+        #expect(!fixture.participants.isEmpty)
+
+        for participant in fixture.participants {
+            let entries = participant.entries.map {
+                EntryRecord(
+                    index: $0.index,
+                    stateID: $0.stateID,
+                    startTimestamp: $0.startTimestamp,
+                    endTimestamp: $0.endTimestamp
+                )
+            }
+            #expect(entries.count > 1)
+            let result = try ActivityPredictor.backtest(
+                entries: entries,
+                configuration: .init(
+                    historyLengths: [1, 2, 4, 8, 16, 32],
+                    baseTableSize: 512,
+                    taggedTableSize: 512,
+                    usefulnessAgingInterval: 256,
+                    maximumTrainingEntries: 10_000
+                ),
+                windowSize: min(500, entries.count - 1)
+            )
+            #expect(result.evaluatedTransitions == entries.count - 1)
+            #expect(result.topThreeCorrect >= result.firstChoiceCorrect)
+            print(
+                "WorldMM \(participant.id): "
+                    + "top1=\(result.firstChoiceAccuracy), "
+                    + "top3=\(result.topThreeAccuracy), "
+                    + "transitions=\(result.evaluatedTransitions)"
+            )
+        }
     }
 
     private func makeEntries(states: [Int]) -> [EntryRecord] {
