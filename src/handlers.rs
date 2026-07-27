@@ -15,8 +15,8 @@
 
 use axum::{
     Json,
-    extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode},
+    extract::{Path, Query, RawQuery, State},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use chrono::{FixedOffset, Utc};
@@ -24,6 +24,7 @@ use mime_guess::from_path;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use sled::{IVec, Transactional, transaction::TransactionResult};
+use std::sync::LazyLock;
 
 use crate::{
     constants::{ALL_STATES_DETAILS, AppState, STATE_COUNT},
@@ -38,22 +39,74 @@ use crate::{
 #[folder = "static/"]
 struct Assets;
 
-pub async fn serve_embedded_assets(Path(file): Path<String>) -> Response {
-    match Assets::get(&file) {
-        Some(content) => {
-            let body = content.data.into_owned();
-            let mime = from_path(&file).first_or_octet_stream();
+fn hex16(bytes: &[u8]) -> String {
+    bytes[..8].iter().map(|b| format!("{b:02x}")).collect()
+}
 
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                "Content-Type",
-                HeaderValue::from_str(mime.as_ref()).unwrap(),
-            );
+pub static ASSET_VERSION: LazyLock<String> = LazyLock::new(|| {
+    let mut names = Assets::iter().collect::<Vec<_>>();
+    names.sort();
 
-            (StatusCode::OK, headers, body).into_response()
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for name in &names {
+        let Some(file) = Assets::get(name) else {
+            continue;
+        };
+        let digest = file.metadata.sha256_hash();
+        for byte in name.as_bytes().iter().chain(digest.iter()) {
+            hash = (hash ^ *byte as u64).wrapping_mul(0x100_0000_01b3);
         }
-        None => StatusCode::NOT_FOUND.into_response(),
     }
+
+    format!("{hash:016x}")
+});
+
+fn is_fingerprinted(query: Option<&str>) -> bool {
+    query.is_some_and(|q| {
+        q.split('&')
+            .any(|pair| pair.strip_prefix("v=") == Some(ASSET_VERSION.as_str()))
+    })
+}
+
+pub async fn serve_embedded_assets(
+    Path(file): Path<String>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Response {
+    let Some(content) = Assets::get(&file) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let cache_control = if is_fingerprinted(query.as_deref()) {
+        "public, max-age=31536000, immutable"
+    } else {
+        "public, max-age=0, must-revalidate"
+    };
+    let etag = format!("\"{}\"", hex16(&content.metadata.sha256_hash()));
+
+    let mut out = HeaderMap::new();
+    out.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static(cache_control),
+    );
+    out.insert(header::ETAG, HeaderValue::from_str(&etag).unwrap());
+
+    let fresh = headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.split(',').any(|candidate| candidate.trim() == etag));
+
+    if fresh {
+        return (StatusCode::NOT_MODIFIED, out).into_response();
+    }
+
+    let mime = from_path(&file).first_or_octet_stream();
+    out.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(mime.as_ref()).unwrap(),
+    );
+
+    (StatusCode::OK, out, content.data.into_owned()).into_response()
 }
 
 #[derive(Deserialize)]

@@ -1,3 +1,37 @@
+let APP = { key: '', page: '', states: [], idleState: null };
+
+function applyAppData() {
+    const el = document.getElementById('app-data');
+    if (!el) return APP;
+    try {
+        APP = JSON.parse(el.textContent);
+    } catch (err) {
+        return APP;
+    }
+    window.ENTRY_KEY = APP.key;
+    return APP;
+}
+
+function stateMeta(stateIdx) {
+    const i = Number(stateIdx);
+    return (Number.isInteger(i) && i >= 0 && i < APP.states.length) ? APP.states[i] : null;
+}
+
+function stateName(stateIdx) {
+    const meta = stateMeta(stateIdx);
+    return meta ? meta.name : `State ${stateIdx}`;
+}
+
+function stateLabel(stateIdx) {
+    const meta = stateMeta(stateIdx);
+    return meta ? `${meta.emoji} ${meta.name}` : `State ${stateIdx}`;
+}
+
+function stateColour(stateIdx) {
+    const meta = stateMeta(stateIdx);
+    return meta ? meta.colour : '#ccc';
+}
+
 function msToReadable(ms) {
     if (!ms || ms <= 500) return "0s";
     const totalMinutes = Math.floor(ms / 60000);

@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use serde::Serialize;
 use sled::Tree;
 use std::{env, sync::LazyLock};
 
@@ -28,10 +29,11 @@ pub const STATE_COUNT: usize = 15;
 
 pub const EMERGENCY_STATE_INDEX: usize = 14;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize)]
 pub struct StateDetail<'a> {
     pub emoji: &'a str,
     pub name: &'a str,
+    #[serde(skip_serializing)]
     pub description: &'a str,
     pub colour: &'a str,
 }

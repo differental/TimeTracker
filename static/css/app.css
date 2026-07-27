@@ -178,11 +178,28 @@ svg {
     padding-inline: var(--gutter);
 }
 
+#app {
+    display: contents;
+}
+
 .page {
     position: relative;
     z-index: 1;
     flex: 1;
     padding-block: clamp(1.5rem, 4vw, 2.75rem) 4rem;
+    view-transition-name: page;
+}
+
+@view-transition {
+    navigation: auto;
+}
+
+:root[data-nav-pending] .nav::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 -1px 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
 }
 
 .aurora {
@@ -1703,10 +1720,50 @@ tr:hover .row-edit,
         animation-delay: var(--delay, 0ms);
     }
 
-    .dial-seg {
+    .dial-seg.is-sweeping {
         stroke-dasharray: var(--len);
         animation: sweep var(--dur-slow) var(--ease) both;
         animation-delay: var(--delay, 0ms);
+    }
+
+    @keyframes nav-pending {
+        from {
+            transform: translateX(-100%);
+        }
+        to {
+            transform: translateX(100%);
+        }
+    }
+
+    :root[data-nav-pending] .nav::after {
+        animation: nav-pending 900ms linear infinite;
+    }
+
+    @keyframes page-out {
+        to {
+            opacity: 0;
+            transform: translateY(-6px);
+        }
+    }
+
+    @keyframes page-in {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+    }
+
+    ::view-transition-old(page) {
+        animation: page-out 140ms var(--ease) both;
+    }
+
+    ::view-transition-new(page) {
+        animation: page-in 240ms var(--ease) both;
+    }
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation-duration: 220ms;
     }
 
     .sheet[open] {

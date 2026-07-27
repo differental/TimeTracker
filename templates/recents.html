@@ -6,98 +6,92 @@
 </head>
 <body>
     {% include "navbar.html" %}
-    <main class="page shell">
-        <div class="page-head">
-            <div>
-                <h1 class="page-title">Recents</h1>
-                <p class="page-sub">Your most recent activity changes.</p>
-            </div>
-        </div>
-
-        <p class="notice hidden" id="recents-error" role="alert"></p>
-
-        <section class="card ribbon-card">
-            <p class="eyebrow">Timeline</p>
-            <div class="ribbon" id="ribbon"></div>
-            <div class="ribbon-axis">
-                <span id="ribbon-from"></span>
-                <span id="ribbon-to"></span>
-            </div>
-        </section>
-
-        <section class="card filters">
-            <div class="filter">
-                <label for="count-select">Items</label>
-                <div class="filter-row">
-                    <select id="count-select" class="field">
-                        <option value="0">N/A</option>
-                        <option value="10">10</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="custom">Custom…</option>
-                    </select>
-                    <input id="count-custom-input" class="field hidden" type="number" min="1" step="1" value="10"
-                        aria-label="Custom item count" />
+    <div id="app">
+        {% include "bootstrap.html" %}
+        <main class="page shell">
+            <div class="page-head">
+                <div>
+                    <h1 class="page-title">Recents</h1>
+                    <p class="page-sub">Your most recent activity changes.</p>
                 </div>
             </div>
-            <div class="filter">
-                <label for="days-select">Days</label>
-                <div class="filter-row">
-                    <select id="days-select" class="field">
-                        <option value="0">N/A</option>
-                        <option value="1">1</option>
-                        <option value="7">7</option>
-                        <option value="30">30</option>
-                        <option value="custom">Custom…</option>
-                    </select>
-                    <input id="days-custom-input" class="field hidden" type="number" min="1" step="1" value="1"
-                        aria-label="Custom day count" />
+
+            <p class="notice hidden" id="recents-error" role="alert"></p>
+
+            <section class="card ribbon-card">
+                <p class="eyebrow">Timeline</p>
+                <div class="ribbon" id="ribbon"></div>
+                <div class="ribbon-axis">
+                    <span id="ribbon-from"></span>
+                    <span id="ribbon-to"></span>
+                </div>
+            </section>
+
+            <section class="card filters">
+                <div class="filter">
+                    <label for="count-select">Items</label>
+                    <div class="filter-row">
+                        <select id="count-select" class="field">
+                            <option value="0">N/A</option>
+                            <option value="10">10</option>
+                            <option value="30">30</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                        <input id="count-custom-input" class="field hidden" type="number" min="1" step="1" value="10"
+                            aria-label="Custom item count" />
+                    </div>
+                </div>
+                <div class="filter">
+                    <label for="days-select">Days</label>
+                    <div class="filter-row">
+                        <select id="days-select" class="field">
+                            <option value="0">N/A</option>
+                            <option value="1">1</option>
+                            <option value="7">7</option>
+                            <option value="30">30</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                        <input id="days-custom-input" class="field hidden" type="number" min="1" step="1" value="1"
+                            aria-label="Custom day count" />
+                    </div>
+                </div>
+                <button type="button" id="apply-filters" class="btn btn-primary">Apply</button>
+            </section>
+
+            <section class="card table-card">
+                <div class="table-scroll">
+                    <table id="events-table">
+                        <thead>
+                            <tr>
+                                <th>Activity</th>
+                                <th>Started</th>
+                                <th>Ended</th>
+                                <th>Duration</th>
+                                <th><span class="sr-only">Edit</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <dialog id="edit-sheet" class="sheet" aria-labelledby="edit-title">
+            <div class="sheet-body">
+                <h2 class="sheet-title" id="edit-title" tabindex="-1" autofocus>Edit start time</h2>
+                <p class="sheet-note">Move when <b id="edit-target"></b> began.</p>
+                <input id="edit-start-input" class="field" type="datetime-local" step="60">
+                <p class="sheet-error hidden" id="edit-error" role="alert"></p>
+                <div class="sheet-actions">
+                    <button type="button" class="btn" id="edit-cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="edit-save">Save</button>
                 </div>
             </div>
-            <button type="button" id="apply-filters" class="btn btn-primary">Apply</button>
-        </section>
-
-        <section class="card table-card">
-            <div class="table-scroll">
-                <table id="events-table">
-                    <thead>
-                        <tr>
-                            <th>Activity</th>
-                            <th>Started</th>
-                            <th>Ended</th>
-                            <th>Duration</th>
-                            <th><span class="sr-only">Edit</span></th>
-                        </tr>
-                    </thead>
-                    <tbody id="events-tbody"></tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <dialog id="edit-sheet" class="sheet" aria-labelledby="edit-title">
-        <div class="sheet-body">
-            <h2 class="sheet-title" id="edit-title" tabindex="-1" autofocus>Edit start time</h2>
-            <p class="sheet-note">Move when <b id="edit-target"></b> began.</p>
-            <input id="edit-start-input" class="field" type="datetime-local" step="60">
-            <p class="sheet-error hidden" id="edit-error" role="alert"></p>
-            <div class="sheet-actions">
-                <button type="button" class="btn" id="edit-cancel">Cancel</button>
-                <button type="button" class="btn btn-primary" id="edit-save">Save</button>
-            </div>
-        </div>
-    </dialog>
+        </dialog>
+    </div>
 
     {% include "footer.html" %}
-    <script>
-        window.ENTRY_KEY = "{{ key }}";
-        const STATES_DATA = [
-            {% for s in states %}["{{ s.name }}", "{{ s.colour }}", "{{ s.emoji }}"], {% endfor %}
-        ];
-
-        document.addEventListener('DOMContentLoaded', () => wireFilters());
-    </script>
-    <script src="/static/js/recents.js" defer></script>
 </body>
 </html>

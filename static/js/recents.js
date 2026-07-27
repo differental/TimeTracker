@@ -15,16 +15,6 @@ function recentsError(message) {
     el.classList.remove('hidden');
 }
 
-function stateColour(stateIdx) {
-    const i = Number(stateIdx);
-    return (i >= 0 && i < STATES_DATA.length) ? STATES_DATA[i][1] : '#ccc';
-}
-
-function stateLabel(stateIdx) {
-    const i = Number(stateIdx);
-    return (i >= 0 && i < STATES_DATA.length) ? STATES_DATA[i][0] : `State ${stateIdx}`;
-}
-
 function renderRibbon(data) {
     const ribbon = document.getElementById('ribbon');
     const fromEl = document.getElementById('ribbon-from');
@@ -53,7 +43,7 @@ function renderRibbon(data) {
         el.style.background = stateColour(seg.state);
         el.style.width = `${((seg.end - seg.start) / span) * 100}%`;
         el.style.setProperty('--delay', `${Math.min(i * 18, 420)}ms`);
-        el.title = `${stateLabel(seg.state)} · ${formatRounded(seg.start)} · ${msToReadable(seg.end - seg.start)}`;
+        el.title = `${stateName(seg.state)} · ${formatRounded(seg.start)} · ${msToReadable(seg.end - seg.start)}`;
         ribbon.appendChild(el);
     });
 
@@ -73,7 +63,7 @@ function buildRow(stateIdx, startMs, endMs, entryIdx) {
     dot.style.background = stateColour(stateIdx);
     stateDiv.appendChild(dot);
     const label = document.createElement('span');
-    label.textContent = stateLabel(stateIdx);
+    label.textContent = stateName(stateIdx);
     stateDiv.appendChild(label);
     stateTd.appendChild(stateDiv);
 
@@ -105,8 +95,8 @@ function buildRow(stateIdx, startMs, endMs, entryIdx) {
         btn.type = 'button';
         btn.className = 'row-edit';
         btn.textContent = 'Edit';
-        btn.setAttribute('aria-label', `Edit start time for ${stateLabel(stateIdx)}`);
-        btn.addEventListener('click', () => openEditDialog(entryIdx, startMs, stateLabel(stateIdx)));
+        btn.setAttribute('aria-label', `Edit start time for ${stateName(stateIdx)}`);
+        btn.addEventListener('click', () => openEditDialog(entryIdx, startMs, stateName(stateIdx)));
         editTd.appendChild(btn);
     }
 
@@ -256,13 +246,18 @@ async function loadEvents(count = 0, days = 1) {
     }
 }
 
-function wireFilters() {
+function initRecents() {
     const countSelect = document.getElementById('count-select');
     const countCustom = document.getElementById('count-custom-input');
     const daysSelect = document.getElementById('days-select');
     const daysCustom = document.getElementById('days-custom-input');
     const applyBtn = document.getElementById('apply-filters');
     const editSheet = document.getElementById('edit-sheet');
+    if (!countSelect || !editSheet) return;
+
+    lastCount = 0;
+    lastDays = 1;
+    editingIdx = null;
 
     document.getElementById('edit-save').addEventListener('click', () => saveEdit());
     document.getElementById('edit-cancel').addEventListener('click', () => editSheet.close());
@@ -349,3 +344,6 @@ function wireFilters() {
 
     loadEvents(0, 1);
 }
+
+window.PAGES = window.PAGES || {};
+window.PAGES.recents = { init: initRecents };

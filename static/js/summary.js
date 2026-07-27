@@ -39,7 +39,7 @@ function setDonutFace(idx) {
     }
 
     const ms = summaryTotals[target] || 0;
-    labelEl.textContent = STATES_DATA[target][0];
+    labelEl.textContent = stateLabel(target);
     totalEl.textContent = msToReadable(ms);
     pctEl.textContent = `${((ms / summaryTotal) * 100).toFixed(1)}% of ${msToReadable(summaryTotal)}`;
 }
@@ -87,7 +87,7 @@ function renderSegments(msArray) {
 
     msArray.forEach((ms, idx) => {
         const percent = (ms / denom) * 100;
-        const color = STATES_DATA[idx][1];
+        const color = stateColour(idx);
 
         if (ms > 0) {
             const circle = document.createElementNS(PIE_NS, 'circle');
@@ -119,7 +119,7 @@ function renderSegments(msArray) {
 
         const labelText = document.createElement('span');
         labelText.className = 'legend-name';
-        labelText.textContent = STATES_DATA[idx][0];
+        labelText.textContent = stateLabel(idx);
 
         const bar = document.createElement('span');
         bar.className = 'legend-bar';
@@ -187,63 +187,86 @@ function applyCustomRange() {
     loadRange(days, 'custom');
 }
 
-document.querySelectorAll('.range-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        if (btn.dataset.range === 'custom') {
-            setCustomOpen(true);
-            setActiveRange('custom');
-            const input = document.getElementById('range-custom-input');
-            if (input) input.focus();
-            return;
-        }
-
-        setCustomOpen(false);
-        const days = parseInt(btn.dataset.range, 10);
-        if (!Number.isNaN(days)) loadRange(days);
-    });
-});
-
-const rangeCustomApply = document.getElementById('range-custom-apply');
-if (rangeCustomApply) {
-    rangeCustomApply.addEventListener('click', () => applyCustomRange());
-}
-
-const rangeCustomInput = document.getElementById('range-custom-input');
-if (rangeCustomInput) {
-    rangeCustomInput.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
-            ev.preventDefault();
-            applyCustomRange();
-        }
-    });
-}
-
-document.addEventListener('click', (ev) => {
+function onSummaryClick(ev) {
     const idx = sliceFromEvent(ev);
     pinnedSlice = (idx !== null && idx !== pinnedSlice) ? idx : null;
     applyHighlight();
-});
+}
 
-document.addEventListener('keydown', (ev) => {
+function onSummaryKeydown(ev) {
     if (ev.key === 'Escape' && pinnedSlice !== null) {
         pinnedSlice = null;
         applyHighlight();
     }
-});
+}
 
-['pie', 'legend'].forEach(id => {
-    const root = document.getElementById(id);
-    if (!root) return;
+function initSummary() {
+    const pie = document.getElementById('pie');
+    if (!pie) return;
 
-    root.addEventListener('pointerover', (ev) => {
-        if (ev.pointerType !== 'mouse') return;
-        hoverSlice = sliceFromEvent(ev);
-        applyHighlight();
+    summaryTotals = [];
+    summaryTotal = 0;
+    pinnedSlice = null;
+    hoverSlice = null;
+
+    document.querySelectorAll('.range-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.dataset.range === 'custom') {
+                setCustomOpen(true);
+                setActiveRange('custom');
+                const input = document.getElementById('range-custom-input');
+                if (input) input.focus();
+                return;
+            }
+
+            setCustomOpen(false);
+            const days = parseInt(btn.dataset.range, 10);
+            if (!Number.isNaN(days)) loadRange(days);
+        });
     });
 
-    root.addEventListener('pointerleave', (ev) => {
-        if (ev.pointerType !== 'mouse') return;
-        hoverSlice = null;
-        applyHighlight();
+    const rangeCustomApply = document.getElementById('range-custom-apply');
+    if (rangeCustomApply) {
+        rangeCustomApply.addEventListener('click', () => applyCustomRange());
+    }
+
+    const rangeCustomInput = document.getElementById('range-custom-input');
+    if (rangeCustomInput) {
+        rangeCustomInput.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                applyCustomRange();
+            }
+        });
+    }
+
+    document.addEventListener('click', onSummaryClick);
+    document.addEventListener('keydown', onSummaryKeydown);
+
+    ['pie', 'legend'].forEach(id => {
+        const root = document.getElementById(id);
+        if (!root) return;
+
+        root.addEventListener('pointerover', (ev) => {
+            if (ev.pointerType !== 'mouse') return;
+            hoverSlice = sliceFromEvent(ev);
+            applyHighlight();
+        });
+
+        root.addEventListener('pointerleave', (ev) => {
+            if (ev.pointerType !== 'mouse') return;
+            hoverSlice = null;
+            applyHighlight();
+        });
     });
-});
+
+    loadRange(7);
+}
+
+function destroySummary() {
+    document.removeEventListener('click', onSummaryClick);
+    document.removeEventListener('keydown', onSummaryKeydown);
+}
+
+window.PAGES = window.PAGES || {};
+window.PAGES.summary = { init: initSummary, destroy: destroySummary };
