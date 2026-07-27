@@ -6,6 +6,12 @@ const DIAL_WINDOW_MS = 86400000;
 const DIAL_MIN_SPAN = 0.35;
 const DIAL_SWEEP_MS = 1000;
 
+let dialSegsGroup = null;
+let dialMarkerGroup = null;
+let dialFirstSeg = null;
+let dialLastSeg = null;
+let dialSegCount = -1;
+
 function dialEl(name, attrs) {
     const el = document.createElementNS(DIAL_NS, name);
     for (const k in attrs) el.setAttribute(k, attrs[k]);
@@ -36,14 +42,15 @@ function dialArc(r, a1, span) {
 }
 
 function dialScaffold(svg) {
-    svg.appendChild(dialEl('circle', { class: 'dial-track', cx: DIAL_CX, cy: DIAL_CY, r: DIAL_R }));
+    const g = dialEl('g', { class: 'dial-scaffold' });
+    g.appendChild(dialEl('circle', { class: 'dial-track', cx: DIAL_CX, cy: DIAL_CY, r: DIAL_R }));
 
     for (let h = 0; h < 24; h++) {
         const major = h % 6 === 0;
         const deg = (h / 24) * 360;
         const [x1, y1] = dialPolar(81, deg);
         const [x2, y2] = dialPolar(major ? 87 : 84.5, deg);
-        svg.appendChild(dialEl('line', {
+        g.appendChild(dialEl('line', {
             class: major ? 'dial-tick-major' : 'dial-tick',
             x1: x1.toFixed(2), y1: y1.toFixed(2), x2: x2.toFixed(2), y2: y2.toFixed(2)
         }));
@@ -52,17 +59,20 @@ function dialScaffold(svg) {
             const [lx, ly] = dialPolar(93, deg);
             const label = dialEl('text', { class: 'dial-num', x: lx.toFixed(2), y: ly.toFixed(2) });
             label.textContent = pad(h);
-            svg.appendChild(label);
+            g.appendChild(label);
         }
     }
+
+    svg.appendChild(g);
 }
 
 function dialMarker(svg, nowMs) {
     const deg = dialAngle(nowMs);
+    const g = dialEl('g', { class: 'dial-marker' });
 
     const [lix, liy] = dialPolar(60.5, deg);
     const [lox, loy] = dialPolar(79.5, deg);
-    svg.appendChild(dialEl('line', {
+    g.appendChild(dialEl('line', {
         class: 'dial-now-line',
         x1: lix.toFixed(2), y1: liy.toFixed(2), x2: lox.toFixed(2), y2: loy.toFixed(2)
     }));
@@ -75,78 +85,124 @@ function dialMarker(svg, nowMs) {
         points: `${tx.toFixed(2)},${ty.toFixed(2)} ${rx.toFixed(2)},${ry.toFixed(2)} ${sx.toFixed(2)},${sy.toFixed(2)}`
     });
     marker.appendChild(dialEl('title', {})).textContent = `Now, ${clockHM(nowMs)}`;
-    svg.appendChild(marker);
+    g.appendChild(marker);
+
+    if (dialMarkerGroup && dialMarkerGroup.isConnected) {
+        dialMarkerGroup.replaceWith(g);
+    } else {
+        svg.appendChild(g);
+    }
+    dialMarkerGroup = g;
 }
 
 function dialSegmentTitle(seg) {
-    const meta = STATE_META[seg.state];
-    const name = meta ? `${meta[0]} ${meta[1]}` : `State ${seg.state}`;
-    return `${name} · ${clockHM(seg.start)}–${clockHM(seg.end)} · ${msToReadable(seg.end - seg.start)}`;
+    return `${stateLabel(seg.state)} · ${clockHM(seg.start)}–${clockHM(seg.end)} · ${msToReadable(seg.end - seg.start)}`;
 }
 
-function dialRenderSegments(svg, segs, fromMs, toMs) {
+function dialSegmentGeometry(seg, total) {
+    const a1 = dialAngle(seg.start);
+    const dur = seg.end - seg.start;
+    const full = dur >= total - 1000;
+    const raw = full ? 360 : dialSpan(a1, dialAngle(seg.end));
+    return { a1, dur, full, raw, span: Math.max(raw, DIAL_MIN_SPAN) };
+}
+
+function dialSegmentElement(seg, total, sweep, elapsed) {
+    const { a1, dur, full, raw, span } = dialSegmentGeometry(seg, total);
+    const colour = stateColour(seg.state);
+
+    const path = full
+        ? dialEl('circle', {
+            class: 'dial-seg', cx: DIAL_CX, cy: DIAL_CY, r: DIAL_R, stroke: colour
+        })
+        : dialEl('path', { class: 'dial-seg', d: dialArc(DIAL_R, a1, span), stroke: colour });
+
+    if (sweep) {
+        path.classList.add('is-sweeping');
+        path.style.setProperty('--len', (DIAL_R * span * Math.PI / 180).toFixed(2));
+        path.style.setProperty('--delay', `${Math.round((elapsed / total) * DIAL_SWEEP_MS)}ms`);
+        path.style.animationDuration = `${Math.max(90, Math.round((dur / total) * DIAL_SWEEP_MS))}ms`;
+    }
+
+    path.appendChild(dialEl('title', {})).textContent = dialSegmentTitle(seg);
+    return { path, tiny: raw < DIAL_MIN_SPAN };
+}
+
+function dialDrawSegments(svg, segs, fromMs, toMs, sweep) {
     const total = Math.max(1, toMs - fromMs);
+    const g = dialEl('g', { class: 'dial-segments' });
     const tiny = [];
     let elapsed = 0;
 
-    segs.forEach(seg => {
-        const meta = STATE_META[seg.state];
-        const dur = seg.end - seg.start;
-        const a1 = dialAngle(seg.start);
-        const full = dur >= total - 1000;
-        const raw = full ? 360 : dialSpan(a1, dialAngle(seg.end));
-        const span = Math.max(raw, DIAL_MIN_SPAN);
-        const frac = dur / total;
+    dialFirstSeg = null;
+    dialLastSeg = null;
 
-        const path = full
-            ? dialEl('circle', {
-                class: 'dial-seg', cx: DIAL_CX, cy: DIAL_CY, r: DIAL_R,
-                stroke: meta ? meta[2] : 'currentColor'
-            })
-            : dialEl('path', {
-                class: 'dial-seg',
-                d: dialArc(DIAL_R, a1, span),
-                stroke: meta ? meta[2] : 'currentColor'
-            });
-        path.style.setProperty('--len', (DIAL_R * span * Math.PI / 180).toFixed(2));
-        path.style.setProperty('--delay', `${Math.round((elapsed / total) * DIAL_SWEEP_MS)}ms`);
-        path.style.animationDuration = `${Math.max(90, Math.round(frac * DIAL_SWEEP_MS))}ms`;
-        path.appendChild(dialEl('title', {})).textContent = dialSegmentTitle(seg);
-
-        svg.appendChild(path);
-        if (raw < DIAL_MIN_SPAN) tiny.push(path);
+    segs.forEach((seg, i) => {
+        const { path, tiny: isTiny } = dialSegmentElement(seg, total, sweep, elapsed);
+        g.appendChild(path);
+        if (isTiny) tiny.push(path);
+        if (i === 0) dialFirstSeg = path;
+        if (i === segs.length - 1) dialLastSeg = path;
         elapsed += seg.end - seg.start;
     });
 
-    tiny.forEach(p => svg.appendChild(p));
+    tiny.forEach(p => g.appendChild(p));
+
+    if (dialSegsGroup && dialSegsGroup.isConnected) {
+        dialSegsGroup.replaceWith(g);
+    } else {
+        svg.appendChild(g);
+    }
+    dialSegsGroup = g;
+    dialSegCount = segs.length;
 }
 
-async function loadDial() {
+function dialResizeSegment(path, seg, total) {
+    if (!path || path.tagName !== 'path') return;
+    const { span, a1 } = dialSegmentGeometry(seg, total);
+    path.setAttribute('d', dialArc(DIAL_R, a1, span));
+    if (path.classList.contains('is-sweeping')) {
+        path.style.setProperty('--len', (DIAL_R * span * Math.PI / 180).toFixed(2));
+    }
+    const title = path.querySelector('title');
+    if (title) title.textContent = dialSegmentTitle(seg);
+}
+
+function dialGrow(segs, fromMs, toMs) {
+    if (segs.length === 0) return;
+    const total = Math.max(1, toMs - fromMs);
+    dialResizeSegment(dialFirstSeg, segs[0], total);
+    if (segs.length > 1) dialResizeSegment(dialLastSeg, segs[segs.length - 1], total);
+}
+
+function dialReset() {
+    dialSegsGroup = null;
+    dialMarkerGroup = null;
+    dialFirstSeg = null;
+    dialLastSeg = null;
+    dialSegCount = -1;
+}
+
+function dialUpdate(pairs, options = {}) {
     const svg = document.getElementById('dial');
     if (!svg) return;
 
+    if (!svg.querySelector('.dial-scaffold')) {
+        svg.innerHTML = '';
+        dialReset();
+        dialScaffold(svg);
+    }
+
     const now = Date.now();
     const from = now - DIAL_WINDOW_MS;
-
-    svg.innerHTML = '';
-    dialScaffold(svg);
-
-    const since = document.getElementById('since');
-    if (since) {
-        since.textContent = (typeof HAS_ENTRY !== 'undefined' && HAS_ENTRY) ? `since ${clockHM(start)}` : '';
-    }
-
-    let pairs = [];
-    try {
-        const resp = await fetch(`/api/recents?days=2&key=${window.ENTRY_KEY}`);
-        if (resp.ok) pairs = await resp.json();
-    } catch (err) {
-        pairs = [];
-    }
-
     const segs = buildSegments(pairs, from, now);
-    dialRenderSegments(svg, segs, from, now);
+    const stale = !dialSegsGroup || !dialSegsGroup.isConnected || segs.length !== dialSegCount;
+
+    if (options.rebuild || stale) {
+        dialDrawSegments(svg, segs, from, now, options.sweep === true);
+    } else {
+        dialGrow(segs, from, now);
+    }
+
     dialMarker(svg, now);
 }
-
-document.addEventListener('DOMContentLoaded', () => loadDial());

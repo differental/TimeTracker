@@ -16,16 +16,18 @@
 use askama::Template;
 use axum::{
     extract::State,
-    http::StatusCode,
+    http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
 use chrono::{LocalResult, TimeZone, Utc};
+use serde::Serialize;
 
 use crate::{
     constants::{
         ACCESS_KEY, ALL_STATES_DETAILS, AppState, EMERGENCY_STATE_INDEX, IDLE_STATE, STATE_COUNT,
         StateDetail,
     },
+    handlers::ASSET_VERSION,
     utils::{get_curr_state, get_length, log_corrupt_entry, read_from_value},
 };
 
@@ -37,6 +39,50 @@ fn state_detail(curr_state: u8) -> StateDetail<'static> {
     }
 }
 
+fn current_state_index(state: &AppState) -> Option<u8> {
+    let curr_state = get_curr_state(state);
+    ((curr_state as usize) < STATE_COUNT).then_some(curr_state)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Bootstrap<'a> {
+    key: &'a str,
+    page: &'a str,
+    version: &'a str,
+    states: [StateDetail<'a>; STATE_COUNT],
+    idle_state: StateDetail<'a>,
+    current_state: Option<u8>,
+    elapsed_ms: i64,
+    is_emergency: bool,
+    emergency_state: usize,
+}
+
+fn bootstrap(page: &'static str, current_state: Option<u8>, elapsed_ms: i64) -> Bootstrap<'static> {
+    Bootstrap {
+        key: &ACCESS_KEY,
+        page,
+        version: env!("CARGO_PKG_VERSION"),
+        states: ALL_STATES_DETAILS,
+        idle_state: IDLE_STATE,
+        current_state,
+        elapsed_ms,
+        is_emergency: current_state.is_some_and(|s| s as usize == EMERGENCY_STATE_INDEX),
+        emergency_state: EMERGENCY_STATE_INDEX,
+    }
+}
+
+fn page_response<T: Template>(page: &T) -> Response {
+    let rendered = page.render().unwrap();
+
+    (
+        StatusCode::OK,
+        [(header::CACHE_CONTROL, "no-store")],
+        Html(rendered),
+    )
+        .into_response()
+}
+
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexPageTemplate<'a> {
@@ -44,9 +90,10 @@ struct IndexPageTemplate<'a> {
     current_page: &'a str,
     states: [StateDetail<'a>; STATE_COUNT],
     current_state: StateDetail<'a>,
-    elapsed_ms: i64,
     is_emergency: bool,
     version: &'a str,
+    asset_version: &'a str,
+    bootstrap: Bootstrap<'a>,
 }
 
 fn render_idle_index() -> Response {
@@ -55,13 +102,13 @@ fn render_idle_index() -> Response {
         current_page: "index",
         states: ALL_STATES_DETAILS,
         current_state: IDLE_STATE,
-        elapsed_ms: 0,
         is_emergency: false,
         version: env!("CARGO_PKG_VERSION"),
+        asset_version: &ASSET_VERSION,
+        bootstrap: bootstrap("index", None, 0),
     };
 
-    let rendered = page.render().unwrap();
-    (StatusCode::OK, Html(rendered)).into_response()
+    page_response(&page)
 }
 
 pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
@@ -72,6 +119,11 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     let (curr_state, curr_starttime) = read_from_value(&state.events, last_id - 1);
+
+    if curr_state as usize >= STATE_COUNT {
+        log_corrupt_entry("display_index", last_id - 1, curr_state, curr_starttime);
+        return render_idle_index();
+    }
 
     let now = Utc::now();
     let starttime = match Utc.timestamp_millis_opt(curr_starttime) {
@@ -88,13 +140,13 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
         current_page: "index",
         states: ALL_STATES_DETAILS,
         current_state: ALL_STATES_DETAILS[curr_state as usize],
-        elapsed_ms: duration.num_milliseconds(),
         is_emergency: curr_state as usize == EMERGENCY_STATE_INDEX,
         version: env!("CARGO_PKG_VERSION"),
+        asset_version: &ASSET_VERSION,
+        bootstrap: bootstrap("index", Some(curr_state), duration.num_milliseconds()),
     };
 
-    let rendered = page.render().unwrap();
-    (StatusCode::OK, Html(rendered)).into_response()
+    page_response(&page)
 }
 
 #[derive(Template)]
@@ -102,10 +154,11 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
 struct SummaryPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
-    states: [StateDetail<'a>; STATE_COUNT],
     current_state: StateDetail<'a>,
     is_emergency: bool,
     version: &'a str,
+    asset_version: &'a str,
+    bootstrap: Bootstrap<'a>,
 }
 
 pub async fn display_summary(State(state): State<AppState>) -> Response {
@@ -114,14 +167,14 @@ pub async fn display_summary(State(state): State<AppState>) -> Response {
     let page = SummaryPageTemplate {
         key: &ACCESS_KEY,
         current_page: "summary",
-        states: ALL_STATES_DETAILS,
         current_state: state_detail(curr_state),
         is_emergency: curr_state as usize == EMERGENCY_STATE_INDEX,
         version: env!("CARGO_PKG_VERSION"),
+        asset_version: &ASSET_VERSION,
+        bootstrap: bootstrap("summary", current_state_index(&state), 0),
     };
 
-    let rendered = page.render().unwrap();
-    (StatusCode::OK, Html(rendered)).into_response()
+    page_response(&page)
 }
 
 #[derive(Template)]
@@ -133,6 +186,8 @@ struct ExplanationPageTemplate<'a> {
     current_state: StateDetail<'a>,
     is_emergency: bool,
     version: &'a str,
+    asset_version: &'a str,
+    bootstrap: Bootstrap<'a>,
 }
 
 pub async fn display_explanations(State(state): State<AppState>) -> Response {
@@ -145,10 +200,11 @@ pub async fn display_explanations(State(state): State<AppState>) -> Response {
         current_state: state_detail(curr_state),
         is_emergency: curr_state as usize == EMERGENCY_STATE_INDEX,
         version: env!("CARGO_PKG_VERSION"),
+        asset_version: &ASSET_VERSION,
+        bootstrap: bootstrap("explanations", current_state_index(&state), 0),
     };
 
-    let rendered = page.render().unwrap();
-    (StatusCode::OK, Html(rendered)).into_response()
+    page_response(&page)
 }
 
 #[derive(Template)]
@@ -156,10 +212,11 @@ pub async fn display_explanations(State(state): State<AppState>) -> Response {
 struct RecentsPageTemplate<'a> {
     key: &'a str,
     current_page: &'a str,
-    states: [StateDetail<'a>; STATE_COUNT],
     current_state: StateDetail<'a>,
     is_emergency: bool,
     version: &'a str,
+    asset_version: &'a str,
+    bootstrap: Bootstrap<'a>,
 }
 
 pub async fn display_recents(State(state): State<AppState>) -> Response {
@@ -168,12 +225,12 @@ pub async fn display_recents(State(state): State<AppState>) -> Response {
     let page = RecentsPageTemplate {
         key: &ACCESS_KEY,
         current_page: "recents",
-        states: ALL_STATES_DETAILS,
         current_state: state_detail(curr_state),
         is_emergency: curr_state as usize == EMERGENCY_STATE_INDEX,
         version: env!("CARGO_PKG_VERSION"),
+        asset_version: &ASSET_VERSION,
+        bootstrap: bootstrap("recents", current_state_index(&state), 0),
     };
 
-    let rendered = page.render().unwrap();
-    (StatusCode::OK, Html(rendered)).into_response()
+    page_response(&page)
 }

@@ -12,10 +12,10 @@
         </a>
 
         <div class="nav-links">
-            <a href="/?key={{ key }}" class="nav-link"{% if current_page == "index" %} aria-current="page"{% endif %}>Now</a>
-            <a href="/recents?key={{ key }}" class="nav-link"{% if current_page == "recents" %} aria-current="page"{% endif %}>Recents</a>
-            <a href="/summary?key={{ key }}" class="nav-link"{% if current_page == "summary" %} aria-current="page"{% endif %}>Summary</a>
-            <a href="/explanations?key={{ key }}" class="nav-link"{% if current_page == "explanations" %} aria-current="page"{% endif %}>Activities</a>
+            <a href="/?key={{ key }}" class="nav-link" data-page="index"{% if current_page == "index" %} aria-current="page"{% endif %}>Now</a>
+            <a href="/recents?key={{ key }}" class="nav-link" data-page="recents"{% if current_page == "recents" %} aria-current="page"{% endif %}>Recents</a>
+            <a href="/summary?key={{ key }}" class="nav-link" data-page="summary"{% if current_page == "summary" %} aria-current="page"{% endif %}>Summary</a>
+            <a href="/explanations?key={{ key }}" class="nav-link" data-page="explanations"{% if current_page == "explanations" %} aria-current="page"{% endif %}>Activities</a>
         </div>
 
         <div class="nav-side">
@@ -25,7 +25,7 @@
 </nav>
 
 <nav class="tabbar" aria-label="Primary">
-    <a href="/?key={{ key }}" class="tab"{% if current_page == "index" %} aria-current="page"{% endif %}>
+    <a href="/?key={{ key }}" class="tab" data-page="index"{% if current_page == "index" %} aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
             <circle cx="12" cy="12" r="8.5"></circle>
             <path d="M12 12V7"></path>
@@ -33,7 +33,7 @@
         </svg>
         <span>Now</span>
     </a>
-    <a href="/recents?key={{ key }}" class="tab"{% if current_page == "recents" %} aria-current="page"{% endif %}>
+    <a href="/recents?key={{ key }}" class="tab" data-page="recents"{% if current_page == "recents" %} aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
             <path d="M4 7h16"></path>
             <path d="M4 12h16"></path>
@@ -41,14 +41,14 @@
         </svg>
         <span>Recents</span>
     </a>
-    <a href="/summary?key={{ key }}" class="tab"{% if current_page == "summary" %} aria-current="page"{% endif %}>
+    <a href="/summary?key={{ key }}" class="tab" data-page="summary"{% if current_page == "summary" %} aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5H12z"></path>
             <path d="M15 3.9A8.5 8.5 0 0 1 20.1 9H15z"></path>
         </svg>
         <span>Summary</span>
     </a>
-    <a href="/explanations?key={{ key }}" class="tab"{% if current_page == "explanations" %} aria-current="page"{% endif %}>
+    <a href="/explanations?key={{ key }}" class="tab" data-page="explanations"{% if current_page == "explanations" %} aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true">
             <rect x="4" y="4" width="7" height="7" rx="2"></rect>
             <rect x="13" y="4" width="7" height="7" rx="2"></rect>

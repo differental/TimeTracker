@@ -21,6 +21,9 @@ use axum::{
 };
 use std::{env, net::SocketAddr};
 use tokio::net::TcpListener;
+use tower_http::compression::{
+    CompressionLayer, DefaultPredicate, Predicate, predicate::NotForContentType,
+};
 
 mod auth;
 use auth::auth_user;
@@ -75,9 +78,13 @@ async fn main() -> anyhow::Result<()> {
 
     let public_app = Router::new().route("/static/{*file}", get(serve_embedded_assets));
 
+    let compression = CompressionLayer::new()
+        .compress_when(DefaultPredicate::new().and(NotForContentType::const_new("font/")));
+
     let app = Router::new()
         .merge(protected_app)
         .merge(public_app)
+        .layer(compression)
         .with_state(app_state);
 
     let addr = env::var("ADDR")

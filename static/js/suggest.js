@@ -16,9 +16,7 @@ function setAllActivitiesOpen(open) {
 }
 
 function stateButton(stateIdx) {
-    const panel = suggestPanel();
-    if (!panel) return null;
-    return panel.querySelector(`.change-state-btn[value="${stateIdx}"]`);
+    return document.querySelector(`.change-state-btn[value="${stateIdx}"]`);
 }
 
 function showAllActivities() {
@@ -27,6 +25,21 @@ function showAllActivities() {
     if (list) list.remove();
     if (btn) btn.remove();
     setAllActivitiesOpen(true);
+}
+
+function returnPromotedButtons() {
+    const list = document.getElementById('suggest-list');
+    const panel = suggestPanel();
+    if (!list || !panel) return;
+
+    list.querySelectorAll('.change-state-btn').forEach(btn => {
+        btn.style.removeProperty('--delay');
+        panel.appendChild(btn);
+    });
+
+    Array.from(panel.children)
+        .sort((a, b) => Number(a.value) - Number(b.value))
+        .forEach(btn => panel.appendChild(btn));
 }
 
 async function loadSuggestions() {
@@ -51,6 +64,8 @@ async function loadSuggestions() {
         return;
     }
 
+    returnPromotedButtons();
+
     const promoted = suggestions
         .map(s => stateButton(s.state))
         .filter(btn => btn !== null);
@@ -69,11 +84,13 @@ async function loadSuggestions() {
     });
 }
 
-const allActivitiesBtn = suggestToggle();
-if (allActivitiesBtn) {
-    allActivitiesBtn.addEventListener('click', () => {
-        setAllActivitiesOpen(allActivitiesBtn.getAttribute('aria-expanded') !== 'true');
-    });
-}
+function initSuggest() {
+    const allActivitiesBtn = suggestToggle();
+    if (allActivitiesBtn) {
+        allActivitiesBtn.addEventListener('click', () => {
+            setAllActivitiesOpen(allActivitiesBtn.getAttribute('aria-expanded') !== 'true');
+        });
+    }
 
-document.addEventListener('DOMContentLoaded', () => loadSuggestions());
+    loadSuggestions();
+}

@@ -6,27 +6,30 @@
 </head>
 <body>
     {% include "navbar.html" %}
-    <main class="page shell">
-        <div class="page-head">
-            <div>
-                <h1 class="page-title">Activities</h1>
-                <p class="page-sub">Every state you can track, its colour, and what it covers.</p>
+    <div id="app">
+        {% include "bootstrap.html" %}
+        <main class="page shell">
+            <div class="page-head">
+                <div>
+                    <h1 class="page-title">Activities</h1>
+                    <p class="page-sub">Every state you can track, its colour, and what it covers.</p>
+                </div>
             </div>
-        </div>
 
-        <div class="state-cards">
-            {% for s in states %}
-            <article class="state-card rise" style="--swatch: {{ s.colour }}; --delay: {{ loop.index0 * 25 }}ms">
-                <h2>
-                    <span aria-hidden="true">{{ s.emoji }}</span>
-                    <span>{{ s.name }}</span>
-                    <span class="state-index">{{ loop.index0 }}</span>
-                </h2>
-                <p>{{ s.description }}</p>
-            </article>
-            {% endfor %}
-        </div>
-    </main>
+            <div class="state-cards">
+                {% for s in states %}
+                <article class="state-card rise" style="--swatch: {{ s.colour }}; --delay: {{ loop.index0 * 25 }}ms">
+                    <h2>
+                        <span aria-hidden="true">{{ s.emoji }}</span>
+                        <span>{{ s.name }}</span>
+                        <span class="state-index">{{ loop.index0 }}</span>
+                    </h2>
+                    <p>{{ s.description }}</p>
+                </article>
+                {% endfor %}
+            </div>
+        </main>
+    </div>
 
     {% include "footer.html" %}
 </body>
