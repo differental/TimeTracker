@@ -128,8 +128,17 @@ function nowTick() {
 
 function onNowVisibility() {
     if (document.hidden) return;
+    if (nowTickTimer === null) return;
+    dialClearSweep();
     refreshNow({ force: true });
     schedulePoll();
+}
+
+function onNowPageShow() {
+    if (nowTickTimer === null) return;
+    clearInterval(nowTickTimer);
+    nowTickTimer = setInterval(nowTick, NOW_TICK_MS);
+    onNowVisibility();
 }
 
 function setUseNow(on) {
@@ -295,6 +304,7 @@ function initNow() {
 
     document.addEventListener('visibilitychange', onNowVisibility);
     window.addEventListener('focus', onNowVisibility);
+    window.addEventListener('pageshow', onNowPageShow);
 }
 
 function destroyNow() {
@@ -308,6 +318,7 @@ function destroyNow() {
     dialReset();
     document.removeEventListener('visibilitychange', onNowVisibility);
     window.removeEventListener('focus', onNowVisibility);
+    window.removeEventListener('pageshow', onNowPageShow);
 }
 
 window.PAGES = window.PAGES || {};

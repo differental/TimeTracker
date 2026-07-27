@@ -48,6 +48,7 @@
 
     --shell: 68rem;
     --gutter: clamp(1rem, 4vw, 2rem);
+    --tabbar-h: 4.05rem;
 
     --font-display: 'Outfit', ui-rounded, system-ui, sans-serif;
     --font-body: 'InterVar', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -175,7 +176,8 @@ svg {
     width: 100%;
     max-width: var(--shell);
     margin-inline: auto;
-    padding-inline: var(--gutter);
+    padding-left: calc(var(--gutter) + env(safe-area-inset-left, 0px));
+    padding-right: calc(var(--gutter) + env(safe-area-inset-right, 0px));
 }
 
 #app {
@@ -328,7 +330,9 @@ svg {
     position: sticky;
     top: 0;
     z-index: 40;
+    padding-top: env(safe-area-inset-top, 0px);
     background: color-mix(in oklab, var(--page) 82%, transparent);
+    -webkit-backdrop-filter: saturate(1.6) blur(14px);
     backdrop-filter: saturate(1.6) blur(14px);
     border-bottom: 1px solid var(--line-soft);
 }
@@ -447,12 +451,23 @@ svg {
     z-index: 50;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
+    align-items: center;
     gap: 0.15rem;
-    padding-block: 0.35rem calc(0.35rem + env(safe-area-inset-bottom));
-    padding-inline: max(0.4rem, calc((100% - 28rem) / 2));
+    min-height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    padding-block: 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    padding-left: max(0.4rem, env(safe-area-inset-left, 0px), calc((100% - 28rem) / 2));
+    padding-right: max(0.4rem, env(safe-area-inset-right, 0px), calc((100% - 28rem) / 2));
     background: color-mix(in oklab, var(--page) 80%, transparent);
+    -webkit-backdrop-filter: saturate(1.6) blur(16px);
     backdrop-filter: saturate(1.6) blur(16px);
     border-top: 1px solid var(--line-soft);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .nav,
+    .tabbar {
+        background: var(--page);
+    }
 }
 
 .tab {
@@ -561,8 +576,10 @@ svg {
     transition: stroke-width var(--dur-fast) var(--ease);
 }
 
-.dial-seg:hover {
-    stroke-width: 22;
+@media (hover: hover) {
+    .dial-seg:hover {
+        stroke-width: 22;
+    }
 }
 
 .dial-tick {
@@ -780,6 +797,7 @@ svg {
 
 .sheet::backdrop {
     background: color-mix(in oklab, var(--page) 60%, rgb(0 0 0 / 0.5));
+    -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
 }
 
@@ -1419,7 +1437,7 @@ tr:hover .row-edit,
     }
 
     body {
-        padding-bottom: calc(4.4rem + env(safe-area-inset-bottom));
+        padding-bottom: calc(var(--tabbar-h) + 0.35rem + env(safe-area-inset-bottom, 0px));
     }
 
     .tabbar {
@@ -1546,7 +1564,7 @@ tr:hover .row-edit,
     }
 
     .sheet-body {
-        padding: 1.15rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom));
+        padding: 1.15rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom, 0px));
         gap: 0.85rem;
     }
 
@@ -1669,7 +1687,7 @@ tr:hover .row-edit,
 
     @keyframes sweep {
         from {
-            stroke-dashoffset: var(--len);
+            stroke-dashoffset: 440;
         }
         to {
             stroke-dashoffset: 0;
@@ -1739,9 +1757,8 @@ tr:hover .row-edit,
     }
 
     .dial-seg.is-sweeping {
-        stroke-dasharray: var(--len);
+        stroke-dasharray: 440;
         animation: sweep var(--dur-slow) var(--ease) both;
-        animation-delay: var(--delay, 0ms);
     }
 
     @keyframes nav-pending {
@@ -1842,6 +1859,7 @@ tr:hover .row-edit,
 
 @media print {
     .nav,
+    .tabbar,
     .foot,
     .state-grid,
     .range-wrap,

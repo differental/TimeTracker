@@ -5,12 +5,14 @@ const DIAL_R = 70;
 const DIAL_WINDOW_MS = 86400000;
 const DIAL_MIN_SPAN = 0.35;
 const DIAL_SWEEP_MS = 1000;
+const DIAL_PATH_LEN = 440;
 
 let dialSegsGroup = null;
 let dialMarkerGroup = null;
 let dialFirstSeg = null;
 let dialLastSeg = null;
 let dialSegCount = -1;
+let dialSweepTimer = null;
 
 function dialEl(name, attrs) {
     const el = document.createElementNS(DIAL_NS, name);
@@ -115,17 +117,27 @@ function dialSegmentElement(seg, total, sweep, elapsed) {
         ? dialEl('circle', {
             class: 'dial-seg', cx: DIAL_CX, cy: DIAL_CY, r: DIAL_R, stroke: colour
         })
-        : dialEl('path', { class: 'dial-seg', d: dialArc(DIAL_R, a1, span), stroke: colour });
+        : dialEl('path', { class: 'dial-seg', d: dialArc(DIAL_R, a1, span), stroke: colour, pathLength: DIAL_PATH_LEN });
 
     if (sweep) {
         path.classList.add('is-sweeping');
-        path.style.setProperty('--len', (DIAL_R * span * Math.PI / 180).toFixed(2));
-        path.style.setProperty('--delay', `${Math.round((elapsed / total) * DIAL_SWEEP_MS)}ms`);
+        path.style.animationDelay = `${Math.round((elapsed / total) * DIAL_SWEEP_MS)}ms`;
         path.style.animationDuration = `${Math.max(90, Math.round((dur / total) * DIAL_SWEEP_MS))}ms`;
     }
 
     path.appendChild(dialEl('title', {})).textContent = dialSegmentTitle(seg);
     return { path, tiny: raw < DIAL_MIN_SPAN };
+}
+
+function dialClearSweep() {
+    clearTimeout(dialSweepTimer);
+    dialSweepTimer = null;
+    if (!dialSegsGroup) return;
+    dialSegsGroup.querySelectorAll('.is-sweeping').forEach(path => {
+        path.classList.remove('is-sweeping');
+        path.style.removeProperty('animation-delay');
+        path.style.removeProperty('animation-duration');
+    });
 }
 
 function dialDrawSegments(svg, segs, fromMs, toMs, sweep) {
@@ -155,15 +167,15 @@ function dialDrawSegments(svg, segs, fromMs, toMs, sweep) {
     }
     dialSegsGroup = g;
     dialSegCount = segs.length;
+
+    clearTimeout(dialSweepTimer);
+    dialSweepTimer = sweep ? setTimeout(dialClearSweep, DIAL_SWEEP_MS * 2 + 400) : null;
 }
 
 function dialResizeSegment(path, seg, total) {
     if (!path || path.tagName !== 'path') return;
     const { span, a1 } = dialSegmentGeometry(seg, total);
     path.setAttribute('d', dialArc(DIAL_R, a1, span));
-    if (path.classList.contains('is-sweeping')) {
-        path.style.setProperty('--len', (DIAL_R * span * Math.PI / 180).toFixed(2));
-    }
     const title = path.querySelector('title');
     if (title) title.textContent = dialSegmentTitle(seg);
 }
@@ -176,6 +188,8 @@ function dialGrow(segs, fromMs, toMs) {
 }
 
 function dialReset() {
+    clearTimeout(dialSweepTimer);
+    dialSweepTimer = null;
     dialSegsGroup = null;
     dialMarkerGroup = null;
     dialFirstSeg = null;
@@ -199,7 +213,7 @@ function dialUpdate(pairs, options = {}) {
     const stale = !dialSegsGroup || !dialSegsGroup.isConnected || segs.length !== dialSegCount;
 
     if (options.rebuild || stale) {
-        dialDrawSegments(svg, segs, from, now, options.sweep === true);
+        dialDrawSegments(svg, segs, from, now, options.sweep === true && !document.hidden);
     } else {
         dialGrow(segs, from, now);
     }
