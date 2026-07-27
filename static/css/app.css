@@ -289,6 +289,24 @@ svg {
     font-size: 0.9rem;
 }
 
+.quote {
+    max-width: 46ch;
+    font-style: italic;
+    text-wrap: pretty;
+}
+
+.quote-author {
+    display: block;
+    margin-top: 0.15rem;
+    font-style: normal;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+}
+
+.quote-author::before {
+    content: '— ';
+}
+
 .eyebrow {
     font-family: var(--font-body);
     font-size: 0.7rem;

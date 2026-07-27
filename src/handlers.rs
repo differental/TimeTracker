@@ -61,11 +61,16 @@ pub static ASSET_VERSION: LazyLock<String> = LazyLock::new(|| {
     format!("{hash:016x}")
 });
 
+fn assets_are_embedded_at_compile_time() -> bool {
+    !cfg!(debug_assertions)
+}
+
 fn is_fingerprinted(query: Option<&str>) -> bool {
-    query.is_some_and(|q| {
-        q.split('&')
-            .any(|pair| pair.strip_prefix("v=") == Some(ASSET_VERSION.as_str()))
-    })
+    assets_are_embedded_at_compile_time()
+        && query.is_some_and(|q| {
+            q.split('&')
+                .any(|pair| pair.strip_prefix("v=") == Some(ASSET_VERSION.as_str()))
+        })
 }
 
 pub async fn serve_embedded_assets(

@@ -30,22 +30,25 @@ function navInvalidate() {
     navCache.clear();
 }
 
-async function navFetch(href) {
+async function navFetch(href, consume) {
     const hit = navCache.get(href);
-    if (hit && Date.now() - hit.at < NAV_CACHE_TTL_MS) return hit.html;
+    if (hit && Date.now() - hit.at < NAV_CACHE_TTL_MS) {
+        if (consume) navCache.delete(href);
+        return hit.html;
+    }
 
     const resp = await fetch(href, { credentials: 'same-origin' });
     if (!resp.ok) throw new Error(`Request failed (${resp.status}).`);
 
     const html = await resp.text();
-    navCache.set(href, { html, at: Date.now() });
+    if (!consume) navCache.set(href, { html, at: Date.now() });
     return html;
 }
 
 function navPrefetch(href) {
     const hit = navCache.get(href);
     if (hit && Date.now() - hit.at < NAV_CACHE_TTL_MS) return;
-    navFetch(href).catch(() => {});
+    navFetch(href, false).catch(() => {});
 }
 
 function navSetPending(on) {
@@ -110,7 +113,7 @@ async function navigate(href, options = {}) {
 
     let html;
     try {
-        html = await navFetch(href);
+        html = await navFetch(href, true);
     } catch (err) {
         clearTimeout(navPendingTimer);
         navSetPending(false);

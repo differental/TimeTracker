@@ -17,8 +17,14 @@ function summaryError(message) {
 
 let summaryTotals = [];
 let summaryTotal = 0;
+let summaryDays = 7;
 let pinnedSlice = null;
 let hoverSlice = null;
+
+function rangeCaption(days) {
+    if (days === 1) return 'in the last 24 hours';
+    return `in the last ${days} days`;
+}
 
 function setDonutFace(idx) {
     const labelEl = document.getElementById('range-label');
@@ -33,13 +39,15 @@ function setDonutFace(idx) {
         return;
     }
 
-    let target = idx;
-    if (target === null) {
-        target = summaryTotals.reduce((best, ms, i) => (ms > summaryTotals[best] ? i : best), 0);
+    if (idx === null) {
+        labelEl.textContent = 'Tracked';
+        totalEl.textContent = msToReadable(summaryTotal);
+        pctEl.textContent = rangeCaption(summaryDays);
+        return;
     }
 
-    const ms = summaryTotals[target] || 0;
-    labelEl.textContent = stateLabel(target);
+    const ms = summaryTotals[idx] || 0;
+    labelEl.textContent = stateLabel(idx);
     totalEl.textContent = msToReadable(ms);
     pctEl.textContent = `${((ms / summaryTotal) * 100).toFixed(1)}% of ${msToReadable(summaryTotal)}`;
 }
@@ -155,6 +163,7 @@ function setCustomOpen(open) {
 
 async function loadRange(days, key = String(days)) {
     setActiveRange(key);
+    summaryDays = days;
 
     try {
         const resp = await fetch(`/api/data?key=${window.ENTRY_KEY}&days=${encodeURIComponent(days)}`);
@@ -206,6 +215,7 @@ function initSummary() {
 
     summaryTotals = [];
     summaryTotal = 0;
+    summaryDays = 7;
     pinnedSlice = null;
     hoverSlice = null;
 
