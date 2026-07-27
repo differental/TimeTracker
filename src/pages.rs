@@ -21,15 +21,25 @@ use axum::{
 };
 use chrono::{LocalResult, TimeZone, Utc};
 use serde::Serialize;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{
     constants::{
-        ACCESS_KEY, ALL_STATES_DETAILS, AppState, EMERGENCY_STATE_INDEX, IDLE_STATE, STATE_COUNT,
-        StateDetail,
+        ACCESS_KEY, ALL_STATES_DETAILS, AppState, EMERGENCY_STATE_INDEX, IDLE_STATE, PAGE_QUOTES,
+        Quote, STATE_COUNT, StateDetail,
     },
     handlers::ASSET_VERSION,
     utils::{get_curr_state, get_length, log_corrupt_entry, read_from_value},
 };
+
+fn random_quote() -> Quote<'static> {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_nanos() as u64);
+    let scrambled = nanos.wrapping_mul(0x2545_f491_4f6c_dd1d) >> 32;
+
+    PAGE_QUOTES[scrambled as usize % PAGE_QUOTES.len()]
+}
 
 fn state_detail(curr_state: u8) -> StateDetail<'static> {
     if (curr_state as usize) < STATE_COUNT {
@@ -94,6 +104,7 @@ struct IndexPageTemplate<'a> {
     version: &'a str,
     asset_version: &'a str,
     bootstrap: Bootstrap<'a>,
+    quote: Quote<'a>,
 }
 
 fn render_idle_index() -> Response {
@@ -106,6 +117,7 @@ fn render_idle_index() -> Response {
         version: env!("CARGO_PKG_VERSION"),
         asset_version: &ASSET_VERSION,
         bootstrap: bootstrap("index", None, 0),
+        quote: random_quote(),
     };
 
     page_response(&page)
@@ -144,6 +156,7 @@ pub async fn display_index(State(state): State<AppState>) -> impl IntoResponse {
         version: env!("CARGO_PKG_VERSION"),
         asset_version: &ASSET_VERSION,
         bootstrap: bootstrap("index", Some(curr_state), duration.num_milliseconds()),
+        quote: random_quote(),
     };
 
     page_response(&page)
@@ -159,6 +172,7 @@ struct SummaryPageTemplate<'a> {
     version: &'a str,
     asset_version: &'a str,
     bootstrap: Bootstrap<'a>,
+    quote: Quote<'a>,
 }
 
 pub async fn display_summary(State(state): State<AppState>) -> Response {
@@ -172,6 +186,7 @@ pub async fn display_summary(State(state): State<AppState>) -> Response {
         version: env!("CARGO_PKG_VERSION"),
         asset_version: &ASSET_VERSION,
         bootstrap: bootstrap("summary", current_state_index(&state), 0),
+        quote: random_quote(),
     };
 
     page_response(&page)
@@ -217,6 +232,7 @@ struct RecentsPageTemplate<'a> {
     version: &'a str,
     asset_version: &'a str,
     bootstrap: Bootstrap<'a>,
+    quote: Quote<'a>,
 }
 
 pub async fn display_recents(State(state): State<AppState>) -> Response {
@@ -230,6 +246,7 @@ pub async fn display_recents(State(state): State<AppState>) -> Response {
         version: env!("CARGO_PKG_VERSION"),
         asset_version: &ASSET_VERSION,
         bootstrap: bootstrap("recents", current_state_index(&state), 0),
+        quote: random_quote(),
     };
 
     page_response(&page)
