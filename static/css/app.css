@@ -825,6 +825,19 @@ svg {
     font-weight: 600;
 }
 
+.sheet-field {
+    display: grid;
+    gap: 0.3rem;
+}
+
+.sheet-field label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+}
+
 .sheet-row {
     display: flex;
     gap: 0.5rem;

@@ -2,6 +2,7 @@
 let lastCount = 0;
 let lastDays = 1;
 let editingIdx = null;
+let editingState = null;
 
 function recentsError(message) {
     const el = document.getElementById('recents-error');
@@ -95,8 +96,8 @@ function buildRow(stateIdx, startMs, endMs, entryIdx) {
         btn.type = 'button';
         btn.className = 'row-edit';
         btn.textContent = 'Edit';
-        btn.setAttribute('aria-label', `Edit start time for ${stateName(stateIdx)}`);
-        btn.addEventListener('click', () => openEditDialog(entryIdx, startMs, stateName(stateIdx)));
+        btn.setAttribute('aria-label', `Edit ${stateName(stateIdx)} entry`);
+        btn.addEventListener('click', () => openEditDialog(entryIdx, stateIdx, startMs));
         editTd.appendChild(btn);
     }
 
@@ -116,16 +117,31 @@ function clearEditError() {
     el.classList.add('hidden');
 }
 
-// Opens the edit dialog for a single entry's start time and PUTs the change.
-// The backend (PUT /api/entry/{idx}) validates that the new start stays between
-// the neighbouring entries and returns the error text on violation.
-function openEditDialog(entryIdx, startMs, name) {
+function populateStateSelect() {
+    const select = document.getElementById('edit-state-select');
+    if (!select) return;
+    select.innerHTML = '';
+    for (let i = 0; i < APP.states.length; i++) {
+        const option = document.createElement('option');
+        option.value = String(i);
+        option.textContent = stateLabel(i);
+        select.appendChild(option);
+    }
+}
+
+// Opens the edit dialog for a single entry's activity and start time and PUTs
+// the change. The backend (PUT /api/entry/{idx}) validates that the new start
+// stays between the neighbouring entries and returns the error text on violation.
+function openEditDialog(entryIdx, stateIdx, startMs) {
     const sheet = document.getElementById('edit-sheet');
     const input = document.getElementById('edit-start-input');
+    const select = document.getElementById('edit-state-select');
     const target = document.getElementById('edit-target');
     editingIdx = entryIdx;
+    editingState = stateIdx;
     input.value = msToDatetimeLocal(startMs);
-    target.textContent = name;
+    select.value = String(stateIdx);
+    target.textContent = stateName(stateIdx);
     clearEditError();
     setEditBusy(false, 'Save');
     sheet.showModal();
@@ -136,11 +152,13 @@ function setEditBusy(busy, label) {
     document.getElementById('edit-save').disabled = busy;
     document.getElementById('edit-cancel').disabled = busy;
     document.getElementById('edit-start-input').disabled = busy;
+    document.getElementById('edit-state-select').disabled = busy;
     document.getElementById('edit-save').textContent = label;
 }
 
 async function saveEdit() {
     const input = document.getElementById('edit-start-input');
+    const select = document.getElementById('edit-state-select');
     const val = input && input.value;
     clearEditError();
 
@@ -154,12 +172,24 @@ async function saveEdit() {
         return;
     }
 
+    const stateIdx = parseInt(select && select.value, 10);
+    if (!Number.isInteger(stateIdx) || stateIdx < 0 || stateIdx >= APP.states.length) {
+        showEditError('Please choose an activity.');
+        return;
+    }
+
+    // Only send new_state when it actually changed: the backend rejects a state
+    // matching a neighbouring entry, and an untouched state shouldn't be able to
+    // trip that check on what is otherwise a start-time-only edit.
+    const payload = { start_timestamp: ms };
+    if (stateIdx !== editingState) payload.new_state = stateIdx;
+
     setEditBusy(true, 'Saving…');
     try {
         const resp = await fetch(`/api/entry/${editingIdx}?key=${encodeURIComponent(window.ENTRY_KEY)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ start_timestamp: ms })
+            body: JSON.stringify(payload)
         });
         if (!resp.ok) {
             setEditBusy(false, 'Save');
@@ -258,17 +288,22 @@ function initRecents() {
     lastCount = 0;
     lastDays = 1;
     editingIdx = null;
+    editingState = null;
+
+    populateStateSelect();
 
     document.getElementById('edit-save').addEventListener('click', () => saveEdit());
     document.getElementById('edit-cancel').addEventListener('click', () => editSheet.close());
     editSheet.addEventListener('click', (ev) => {
         if (ev.target === editSheet) editSheet.close();
     });
-    document.getElementById('edit-start-input').addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
-            ev.preventDefault();
-            saveEdit();
-        }
+    ['edit-start-input', 'edit-state-select'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                saveEdit();
+            }
+        });
     });
 
     function toggleCustom(selectEl, customInputEl) {
