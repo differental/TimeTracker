@@ -627,17 +627,17 @@ pub async fn fetch_recent_states(
     let curr_time = Utc::now().timestamp_millis();
     let range_start = curr_time - days * 24 * 3600 * 1000;
 
-    let output = ((length - count)..=(length - 1))
-        .rev()
-        .map(|i| (i, read_from_value(&state.events, i)))
-        .take_while(|(_, (_, t))| *t >= range_start)
-        .map(|(i, (s, t))| {
-            if !is_valid_timestamp(t) {
-                log_corrupt_entry("fetch_recent_states", i, s, t);
-            }
-            (s, t)
-        })
-        .collect::<Vec<(u8, i64)>>();
+    let mut output = Vec::<(u8, i64)>::new();
+    for i in ((length - count)..=(length - 1)).rev() {
+        let (s, t) = read_from_value(&state.events, i);
+        if !is_valid_timestamp(t) {
+            log_corrupt_entry("fetch_recent_states", i, s, t);
+        }
+        output.push((s, t));
+        if t < range_start {
+            break;
+        }
+    }
 
     (StatusCode::OK, Json(output)).into_response()
 }

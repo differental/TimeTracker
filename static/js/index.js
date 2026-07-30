@@ -129,7 +129,6 @@ function nowTick() {
 function onNowVisibility() {
     if (document.hidden) return;
     if (nowTickTimer === null) return;
-    dialClearSweep();
     refreshNow({ force: true });
     schedulePoll();
 }

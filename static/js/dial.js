@@ -39,6 +39,11 @@ function dialSpan(a1, a2) {
 
 function dialArc(r, a1, span) {
     const [x1, y1] = dialPolar(r, a1);
+    if (span >= 360) {
+        const [xm, ym] = dialPolar(r, a1 + 180);
+        return `M ${x1.toFixed(3)} ${y1.toFixed(3)} A ${r} ${r} 0 0 1 ${xm.toFixed(3)} ${ym.toFixed(3)}`
+            + ` A ${r} ${r} 0 0 1 ${x1.toFixed(3)} ${y1.toFixed(3)}`;
+    }
     const [x2, y2] = dialPolar(r, a1 + span);
     return `M ${x1.toFixed(3)} ${y1.toFixed(3)} A ${r} ${r} 0 ${span > 180 ? 1 : 0} 1 ${x2.toFixed(3)} ${y2.toFixed(3)}`;
 }
@@ -106,27 +111,25 @@ function dialSegmentGeometry(seg, total) {
     const dur = seg.end - seg.start;
     const full = dur >= total - 1000;
     const raw = full ? 360 : dialSpan(a1, dialAngle(seg.end));
-    return { a1, dur, full, raw, span: Math.max(raw, DIAL_MIN_SPAN) };
+    return { a1, raw, span: Math.max(raw, DIAL_MIN_SPAN) };
 }
 
-function dialSegmentElement(seg, total, sweep, elapsed) {
-    const { a1, dur, full, raw, span } = dialSegmentGeometry(seg, total);
+function dialSegmentElement(seg, total, sweep, lead) {
+    const { a1, raw, span } = dialSegmentGeometry(seg, total);
     const colour = stateColour(seg.state);
 
-    const path = full
-        ? dialEl('circle', {
-            class: 'dial-seg', cx: DIAL_CX, cy: DIAL_CY, r: DIAL_R, stroke: colour
-        })
-        : dialEl('path', { class: 'dial-seg', d: dialArc(DIAL_R, a1, span), stroke: colour, pathLength: DIAL_PATH_LEN });
+    const path = dialEl('path', {
+        class: 'dial-seg', d: dialArc(DIAL_R, a1, span), stroke: colour, pathLength: DIAL_PATH_LEN
+    });
 
     if (sweep) {
         path.classList.add('is-sweeping');
-        path.style.animationDelay = `${Math.round((elapsed / total) * DIAL_SWEEP_MS)}ms`;
-        path.style.animationDuration = `${Math.max(90, Math.round((dur / total) * DIAL_SWEEP_MS))}ms`;
+        path.style.animationDelay = `${Math.round((lead / 360) * DIAL_SWEEP_MS)}ms`;
+        path.style.animationDuration = `${Math.max(1, Math.round((span / 360) * DIAL_SWEEP_MS))}ms`;
     }
 
     path.appendChild(dialEl('title', {})).textContent = dialSegmentTitle(seg);
-    return { path, tiny: raw < DIAL_MIN_SPAN };
+    return { path, tiny: raw < DIAL_MIN_SPAN, span };
 }
 
 function dialClearSweep() {
@@ -144,18 +147,18 @@ function dialDrawSegments(svg, segs, fromMs, toMs, sweep) {
     const total = Math.max(1, toMs - fromMs);
     const g = dialEl('g', { class: 'dial-segments' });
     const tiny = [];
-    let elapsed = 0;
+    let lead = 0;
 
     dialFirstSeg = null;
     dialLastSeg = null;
 
     segs.forEach((seg, i) => {
-        const { path, tiny: isTiny } = dialSegmentElement(seg, total, sweep, elapsed);
+        const { path, tiny: isTiny, span } = dialSegmentElement(seg, total, sweep, lead);
         g.appendChild(path);
         if (isTiny) tiny.push(path);
         if (i === 0) dialFirstSeg = path;
         if (i === segs.length - 1) dialLastSeg = path;
-        elapsed += seg.end - seg.start;
+        lead += span;
     });
 
     tiny.forEach(p => g.appendChild(p));
