@@ -840,14 +840,6 @@ svg {
     color: var(--text-faint);
 }
 
-/* Native datetime-local controls carry a large intrinsic min-width; as grid
-   items they default to min-width: auto and can overflow the sheet on narrow
-   screens. Let them shrink to the grid track instead. */
-.sheet-field .field {
-    min-width: 0;
-    max-width: 100%;
-}
-
 .sheet-row {
     display: flex;
     gap: 0.5rem;
@@ -876,6 +868,9 @@ svg {
     font-size: 0.85rem;
 }
 
+/* Native datetime-local controls carry a large intrinsic min-width; as grid
+   items they default to min-width: auto and can overflow the sheet on narrow
+   screens. Let them shrink to the grid track instead. */
 .field {
     width: 100%;
     min-width: 0;
