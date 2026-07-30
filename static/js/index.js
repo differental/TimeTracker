@@ -1,8 +1,11 @@
 const NOW_TICK_MS = 1000;
 const NOW_POLL_MS = 5000;
 const NOW_POLL_MAX_MS = 60000;
+const NOW_SEED_TOLERANCE_MS = 5000;
 
 let nowPairs = [];
+let nowCachedPairs = null;
+let nowSwept = false;
 let nowSig = null;
 let nowStart = 0;
 let nowState = null;
@@ -77,6 +80,17 @@ function applyCurrentEntry(entry) {
 
 function nowSignature(pairs) {
     return pairs.map(p => `${p[0]}@${p[1]}`).join('|');
+}
+
+function nowSeedPairs() {
+    if (!Array.isArray(nowCachedPairs) || nowCachedPairs.length === 0) return [];
+    if (!nowHasEntry) return nowCachedPairs;
+
+    const head = nowCachedPairs[0];
+    if (Number(head[0]) === nowState && Math.abs(Number(head[1]) - nowStart) < NOW_SEED_TOLERANCE_MS) {
+        return nowCachedPairs;
+    }
+    return [[nowState, nowStart]].concat(nowCachedPairs.filter(p => Number(p[1]) < nowStart));
 }
 
 function applyPairs(pairs, sweep) {
@@ -282,23 +296,25 @@ function initNow() {
     if (!switchEls.sheet) return;
 
     nowGeneration += 1;
-    nowPairs = [];
-    nowSig = null;
     nowPollMs = NOW_POLL_MS;
     nowQueue = null;
     nowState = Number.isInteger(APP.currentState) ? APP.currentState : null;
     nowHasEntry = nowState !== null;
     nowStart = nowHasEntry ? Date.now() - Number(APP.elapsedMs || 0) : 0;
 
+    nowPairs = nowSeedPairs();
+    nowSig = nowPairs.length ? nowSignature(nowPairs) : null;
+
     dialReset();
-    dialUpdate([], { rebuild: true });
+    dialUpdate(nowPairs, { rebuild: true });
     updateElapsed();
     renderCurrentState();
     wireSwitchSheet();
     initSuggest();
 
     nowTickTimer = setInterval(nowTick, NOW_TICK_MS);
-    refreshNow({ force: true, sweep: true });
+    refreshNow({ force: true, sweep: !nowSwept });
+    nowSwept = true;
     schedulePoll();
 
     document.addEventListener('visibilitychange', onNowVisibility);
@@ -308,6 +324,7 @@ function initNow() {
 
 function destroyNow() {
     nowGeneration += 1;
+    if (nowPairs.length) nowCachedPairs = nowPairs;
     clearInterval(nowTickTimer);
     clearTimeout(nowPollTimer);
     nowTickTimer = null;
