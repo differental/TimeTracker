@@ -3,6 +3,7 @@ let lastCount = 0;
 let lastDays = 1;
 let editingIdx = null;
 let editingState = null;
+let editUseNow = false;
 
 function recentsError(message) {
     const el = document.getElementById('recents-error');
@@ -143,9 +144,16 @@ function openEditDialog(entryIdx, stateIdx, startMs) {
     select.value = String(stateIdx);
     target.textContent = stateName(stateIdx);
     clearEditError();
+    setEditUseNow(false);
     setEditBusy(false, 'Save');
     sheet.showModal();
     document.getElementById('edit-title').focus();
+}
+
+function setEditUseNow(on) {
+    editUseNow = on;
+    const btn = document.getElementById('edit-now-btn');
+    if (btn) btn.setAttribute('aria-pressed', String(on));
 }
 
 function setEditBusy(busy, label) {
@@ -153,23 +161,30 @@ function setEditBusy(busy, label) {
     document.getElementById('edit-cancel').disabled = busy;
     document.getElementById('edit-start-input').disabled = busy;
     document.getElementById('edit-state-select').disabled = busy;
+    const nowBtn = document.getElementById('edit-now-btn');
+    if (nowBtn) nowBtn.disabled = busy;
     document.getElementById('edit-save').textContent = label;
 }
 
 async function saveEdit() {
     const input = document.getElementById('edit-start-input');
     const select = document.getElementById('edit-state-select');
-    const val = input && input.value;
     clearEditError();
 
-    if (!val) {
-        showEditError('Please choose a date and time.');
-        return;
-    }
-    const ms = new Date(val).getTime();
-    if (Number.isNaN(ms)) {
-        showEditError('Invalid date/time.');
-        return;
+    let ms;
+    if (editUseNow) {
+        ms = Date.now();
+    } else {
+        const val = input && input.value;
+        if (!val) {
+            showEditError('Please choose a date and time.');
+            return;
+        }
+        ms = new Date(val).getTime();
+        if (Number.isNaN(ms)) {
+            showEditError('Invalid date/time.');
+            return;
+        }
     }
 
     const stateIdx = parseInt(select && select.value, 10);
@@ -289,6 +304,7 @@ function initRecents() {
     lastDays = 1;
     editingIdx = null;
     editingState = null;
+    editUseNow = false;
 
     populateStateSelect();
 
@@ -297,6 +313,12 @@ function initRecents() {
     editSheet.addEventListener('click', (ev) => {
         if (ev.target === editSheet) editSheet.close();
     });
+
+    const editNowBtn = document.getElementById('edit-now-btn');
+    const editStartInput = document.getElementById('edit-start-input');
+    editNowBtn.addEventListener('click', () => setEditUseNow(true));
+    editStartInput.addEventListener('focus', () => setEditUseNow(false));
+    editStartInput.addEventListener('input', () => setEditUseNow(false));
     ['edit-start-input', 'edit-state-select'].forEach(id => {
         document.getElementById(id).addEventListener('keydown', (ev) => {
             if (ev.key === 'Enter') {

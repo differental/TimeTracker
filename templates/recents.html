@@ -88,7 +88,10 @@
                 </div>
                 <div class="sheet-field">
                     <label for="edit-start-input">Started</label>
-                    <input id="edit-start-input" class="field" type="datetime-local" step="60">
+                    <div class="sheet-row">
+                        <input id="edit-start-input" class="field" type="datetime-local" step="60">
+                        <button type="button" id="edit-now-btn" class="btn btn-now" aria-pressed="false">NOW</button>
+                    </div>
                 </div>
                 <p class="sheet-error hidden" id="edit-error" role="alert"></p>
                 <div class="sheet-actions">
