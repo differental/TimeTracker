@@ -14,16 +14,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use chrono::{LocalResult, TimeZone, Utc};
-use num::traits::ToBytes;
 use sled::{IVec, Tree};
 
 pub fn is_valid_timestamp(timestamp: i64) -> bool {
     matches!(Utc.timestamp_millis_opt(timestamp), LocalResult::Single(_))
 }
 
-pub const MIN_REASONABLE_TIMESTAMP_MS: i64 = 0; // 1970-01-01T00:00:00Z
+const MIN_REASONABLE_TIMESTAMP_MS: i64 = 0; // 1970-01-01T00:00:00Z
 
-pub const FUTURE_TOLERANCE_MS: i64 = 5000;
+const FUTURE_TOLERANCE_MS: i64 = 5000;
 
 pub fn is_reasonable_timestamp(timestamp: i64, now: i64) -> bool {
     is_valid_timestamp(timestamp)
@@ -45,13 +44,8 @@ pub fn ivec_to_u64(v: IVec) -> u64 {
     u64::from_ne_bytes(bytes)
 }
 
-pub fn to_ivec<T: ToBytes>(n: T) -> IVec
-where
-    IVec: for<'a> From<&'a T::Bytes>,
-{
-    // There's gotta be some way to not express this in such an ugly way...
-    let bytes = n.to_ne_bytes();
-    IVec::from(&bytes)
+pub fn to_ivec(n: u64) -> IVec {
+    IVec::from(&n.to_ne_bytes())
 }
 
 pub fn get_length(meta: &Tree) -> u64 {

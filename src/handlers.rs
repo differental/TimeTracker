@@ -581,7 +581,7 @@ pub async fn fetch_recent_states(
     (StatusCode::OK, Json(output)).into_response()
 }
 
-pub const EXPORT_FORMAT_VERSION: u32 = 1;
+const EXPORT_FORMAT_VERSION: u32 = 1;
 
 #[derive(Serialize, Deserialize)]
 pub struct ExportEntry {
