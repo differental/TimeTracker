@@ -33,7 +33,6 @@ pub const EMERGENCY_STATE_INDEX: usize = 14;
 pub struct StateDetail<'a> {
     pub emoji: &'a str,
     pub name: &'a str,
-    #[serde(skip_serializing)]
     pub description: &'a str,
     pub colour: &'a str,
 }
@@ -130,91 +129,3 @@ pub const ALL_STATES_DETAILS: [StateDetail; STATE_COUNT] = [
         colour: "#ff0000",
     },
 ];
-
-#[derive(Clone, Copy)]
-pub struct Quote<'a> {
-    pub text: &'a str,
-    pub author: &'a str,
-}
-
-pub const PAGE_QUOTES: [Quote; 18] = [
-    Quote {
-        text: "Lost time is never found again.",
-        author: "Benjamin Franklin",
-    },
-    Quote {
-        text: "Dost thou love life? Then do not squander time, for that is the stuff life is made of.",
-        author: "Benjamin Franklin",
-    },
-    Quote {
-        text: "How we spend our days is, of course, how we spend our lives.",
-        author: "Annie Dillard",
-    },
-    Quote {
-        text: "It is not that we have a short time to live, but that we waste a lot of it.",
-        author: "Seneca",
-    },
-    Quote {
-        text: "Nothing is ours except time.",
-        author: "Seneca",
-    },
-    Quote {
-        text: "Time is what we want most, but what we use worst.",
-        author: "William Penn",
-    },
-    Quote {
-        text: "Until we can manage time, we can manage nothing else.",
-        author: "Peter Drucker",
-    },
-    Quote {
-        text: "Time flies over us, but leaves its shadow behind.",
-        author: "Nathaniel Hawthorne",
-    },
-    Quote {
-        text: "The two most powerful warriors are patience and time.",
-        author: "Leo Tolstoy",
-    },
-    Quote {
-        text: "Better three hours too soon than a minute too late.",
-        author: "William Shakespeare",
-    },
-    Quote {
-        text: "Procrastination is the thief of time.",
-        author: "Edward Young",
-    },
-    Quote {
-        text: "We must use time as a tool, not as a couch.",
-        author: "John F. Kennedy",
-    },
-    Quote {
-        text: "Time is the most valuable thing a man can spend.",
-        author: "Theophrastus",
-    },
-    Quote {
-        text: "Time is the wisest counsellor of all.",
-        author: "Pericles",
-    },
-    Quote {
-        text: "An inch of time is an inch of gold.",
-        author: "Chinese proverb",
-    },
-    Quote {
-        text: "Time and tide wait for no man.",
-        author: "English proverb",
-    },
-    Quote {
-        text: "Yesterday is gone. Tomorrow has not yet come. We have only today.",
-        author: "Mother Teresa",
-    },
-    Quote {
-        text: "Time is the coin of your life. It is the only coin you have, and only you can determine how it will be spent.",
-        author: "Carl Sandburg",
-    },
-];
-
-pub const IDLE_STATE: StateDetail = StateDetail {
-    emoji: "⏱️",
-    name: "IDLE — Not recorded",
-    description: "",
-    colour: "#FFF",
-};

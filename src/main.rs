@@ -21,9 +21,7 @@ use axum::{
 };
 use std::{env, net::SocketAddr};
 use tokio::net::TcpListener;
-use tower_http::compression::{
-    CompressionLayer, DefaultPredicate, Predicate, predicate::NotForContentType,
-};
+use tower_http::compression::CompressionLayer;
 
 mod auth;
 use auth::auth_user;
@@ -33,15 +31,11 @@ use constants::AppState;
 
 mod handlers;
 use handlers::{
-    add_entry, export_data, fetch_length, fetch_recent_states, fetch_summary_data,
-    force_set_length, get_entry, import_data, serve_embedded_assets, suggest_next_states,
-    update_entry,
+    add_entry, export_data, fetch_length, fetch_recent_states, fetch_states, fetch_summary_data,
+    force_set_length, get_entry, import_data, suggest_next_states, update_entry,
 };
 
 mod predictor;
-
-mod pages;
-use pages::{display_explanations, display_index, display_recents, display_summary};
 
 mod utils;
 
@@ -57,10 +51,7 @@ async fn main() -> anyhow::Result<()> {
     let app_state = AppState { events, meta };
 
     let protected_app = Router::new()
-        .route("/", get(display_index))
-        .route("/summary", get(display_summary))
-        .route("/explanations", get(display_explanations))
-        .route("/recents", get(display_recents))
+        .route("/api/states", get(fetch_states))
         .route("/api/entry", post(add_entry))
         .route("/api/entry/{entry_idx}", get(get_entry))
         .route("/api/entry/{entry_idx}", put(update_entry))
@@ -76,15 +67,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .layer(middleware::from_fn(auth_user));
 
-    let public_app = Router::new().route("/static/{*file}", get(serve_embedded_assets));
-
-    let compression = CompressionLayer::new()
-        .compress_when(DefaultPredicate::new().and(NotForContentType::const_new("font/")));
-
-    let app = Router::new()
-        .merge(protected_app)
-        .merge(public_app)
-        .layer(compression)
+    let app = protected_app
+        .layer(CompressionLayer::new())
         .with_state(app_state);
 
     let addr = env::var("ADDR")
