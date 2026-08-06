@@ -32,7 +32,7 @@ use constants::AppState;
 mod handlers;
 use handlers::{
     add_entry, export_data, fetch_length, fetch_recent_states, fetch_states, fetch_summary_data,
-    force_set_length, get_entry, import_data, suggest_next_states, update_entry,
+    force_set_length, get_entry, import_data, not_found, suggest_next_states, update_entry,
 };
 
 mod predictor;
@@ -68,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(middleware::from_fn(auth_user));
 
     let app = protected_app
+        .fallback(not_found)
         .layer(CompressionLayer::new())
         .with_state(app_state);
 

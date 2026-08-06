@@ -30,7 +30,7 @@ You can deploy your instance on a server and reach it through the server IP and 
 
 ## API
 
-Every route requires `?key={ACCESS_KEY}` and returns JSON.
+Every route requires `?key={ACCESS_KEY}`. Successful responses are JSON; errors are plain text.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -45,6 +45,8 @@ Every route requires `?key={ACCESS_KEY}` and returns JSON.
 | `GET` | `/api/suggest` | Next-activity predictions |
 | `GET` | `/api/export` | Full history as JSON |
 | `POST` | `/api/import` | Replace history from JSON (32 MB limit) |
+
+Any path outside this table returns `404 Not Found` with a `Not found: {METHOD} {path}` body, without checking the key.
 
 ## Development
 

@@ -16,7 +16,7 @@
 use axum::{
     Json,
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{Method, StatusCode, Uri},
     response::{IntoResponse, Response},
 };
 use chrono::{FixedOffset, Utc};
@@ -31,6 +31,14 @@ use crate::{
         log_corrupt_entry, read_from_value, to_ivec, try_read_from_value,
     },
 };
+
+pub async fn not_found(method: Method, uri: Uri) -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        format!("Not found: {method} {}", uri.path()),
+    )
+        .into_response()
+}
 
 #[derive(Serialize)]
 pub struct StatesResponse<'a> {
